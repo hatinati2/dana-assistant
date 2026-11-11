@@ -88,7 +88,7 @@ if "from orders_store import ScheduledOrderStore" not in s:
         raise SystemExit("Cannot locate orders API import for local scheduler")
     s = s.replace(
         marker,
-        marker + "\nfrom orders_store import ScheduledOrderStore, TEHRAN, start_order_scheduler, calendar_data, build_order_plan\norder_store = ScheduledOrderStore(Path(__file__).resolve().parent / \"data\" / \"scheduled_orders.json\")",
+        marker + "\nfrom orders_store import ScheduledOrderStore, TEHRAN, start_order_scheduler, calendar_data, build_order_plan, format_jalali_datetime\norder_store = ScheduledOrderStore(Path(__file__).resolve().parent / \"data\" / \"scheduled_orders.json\")",
         1,
     )
 
@@ -194,7 +194,7 @@ replacement = '''    def do_GET(self):
 
         if parsed.path == "/api/server-time":
             now = datetime.now(TEHRAN)
-            self.send_json({"unix_millis": int(now.timestamp() * 1000), "timezone": "Asia/Tehran"})
+            self.send_json({"unix_millis": int(now.timestamp() * 1000), "timezone": "Asia/Tehran", "jalali_date": format_jalali_datetime(now).split(" ")[0]})
             return
 
         if parsed.path == "/api/calendar":
