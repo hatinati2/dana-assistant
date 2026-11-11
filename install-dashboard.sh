@@ -82,15 +82,17 @@ else:
     if "broker_login_ok = " + "False" not in s:
         s = s.replace("session_auth = {}", "session_auth = {}\nbroker_login_ok = False", 1)
 
-if "from orders_store import ScheduledOrderStore" not in s:
+orders_store_import = "from orders_store import ScheduledOrderStore, TEHRAN, start_order_scheduler, calendar_data, build_order_plan, format_jalali_datetime"
+if orders_store_import not in s:
     marker = "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded"
     if marker not in s:
         raise SystemExit("Cannot locate orders API import for local scheduler")
-    s = s.replace(
-        marker,
-        marker + "\nfrom orders_store import ScheduledOrderStore, TEHRAN, start_order_scheduler, calendar_data, build_order_plan, format_jalali_datetime\norder_store = ScheduledOrderStore(Path(__file__).resolve().parent / \"data\" / \"scheduled_orders.json\")",
-        1,
-    )
+    s = s.replace(marker, marker + "\n" + orders_store_import, 1)
+
+if "order_store = ScheduledOrderStore(" not in s:
+    if orders_store_import not in s:
+        raise SystemExit("Cannot locate local scheduler import")
+    s = s.replace(orders_store_import, orders_store_import + "\norder_store = ScheduledOrderStore(Path(__file__).resolve().parent / \"data\" / \"scheduled_orders.json\")", 1)
 
 json_parse_prefix = "            try:\n                result = json.loads(raw) if raw else None"
 json_parse_start = s.find(json_parse_prefix)
