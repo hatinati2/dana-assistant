@@ -177,7 +177,7 @@ HTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
 '''
 p.write_text(s, encoding="utf-8")
 PY
-"$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/login_portal.py" "$APP_DIR/symbols.py"
+"$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/login_portal.py" "$APP_DIR/symbols.py" "$APP_DIR/orders_api.py"
 "$APP_DIR/.venv/bin/python" -m unittest discover -s "$APP_DIR/tests" -v
 
 # Stop only the Python process currently listening on the panel port.
