@@ -56,15 +56,24 @@ if "from symbols import start_symbol_refresh, suggest_symbols, symbol_catalog_st
         1,
     )
 
-if "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded" not in s:
-    marker = "from symbols import start_symbol_refresh, suggest_symbols, symbol_catalog_status"
-    if marker not in s:
+orders_import_marker = "from " + "orders_api import"
+if orders_import_marker not in s:
+    symbols_import = "from symbols import start_symbol_refresh, suggest_symbols, symbol_catalog_status"
+    if symbols_import not in s:
         raise SystemExit("Cannot locate symbols import for orders API")
     s = s.replace(
-        marker,
-        marker + "\nfrom orders_api import capture_session_auth, fetch_open_orders\nsession_auth = {}",
+        symbols_import,
+        symbols_import + "\\nfrom orders_api import capture_session_auth, fetch_open_orders, login_succeeded\\nsession_auth = {}\\nbroker_login_ok = False",
         1,
     )
+else:
+    s = s.replace(
+        "from orders_api import capture_session_auth, fetch_open_orders\\n",
+        "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded\\n",
+        1,
+    )
+    if "broker_login_ok = " + "False" not in s:
+        s = s.replace("session_auth = {}", "session_auth = {}\\nbroker_login_ok = False", 1)
 
 login_parse_marker = """            try:
                 result = json.loads(raw) if raw else None
@@ -73,15 +82,17 @@ login_parse_marker = """            try:
 
             keys = sorted(result.keys()) if isinstance(result, dict) else []
 """
-login_parse_replacement = """            try:
+capture_marker = "session_auth = capture_session_auth(" + "result)"
+if capture_marker not in s:
+    login_parse_replacement = """            try:
                 result = json.loads(raw) if raw else None
             except Exception:
                 result = None
 
-            global session_auth
+            global session_auth, broker_login_ok
             session_auth = capture_session_auth(result)
-
             login_ok = login_succeeded(result)
+            broker_login_ok = login_ok
             if login_ok:
                 self.send_response(303)
                 self.send_header("Location", "/")
@@ -98,10 +109,24 @@ login_parse_replacement = """            try:
 
             keys = sorted(result.keys()) if isinstance(result, dict) else []
 """
-if "session_auth = capture_session_auth(result)" not in s:
     if login_parse_marker not in s:
         raise SystemExit("Cannot locate login response parser")
     s = s.replace(login_parse_marker, login_parse_replacement, 1)
+
+if "ورود دومرحله‌ای:" not in s:
+    details_marker = "            self.send_html(page(details))"
+    details_prefix = '''            details = (
+                f"وضعیت ورود: {login_status}<br>"
+                f"کد خطا: {html.escape(str(error_code))}<br>"
+                f"پیام خطا: {html.escape(str(error_message))}<br>"
+                f"مرحله ورود: {html.escape(str(login_step))}<br>"
+                f"ورود دومرحله‌ای: {html.escape(str(two_factor))}<br>"
+                + details
+            )
+'''
+    if details_marker not in s:
+        raise SystemExit("Cannot locate login diagnostic response")
+    s = s.replace(details_marker, details_prefix + details_marker, 1)
 
 if "    def send_json(self, data, status=200):" not in s:
     marker = "    def allowed_host(self):"
@@ -144,6 +169,15 @@ replacement = '''    def do_GET(self):
             return
 
         parsed = urlsplit(self.path)
+
+        if parsed.path == "/api/broker/status":
+            self.send_json({
+                "connected": bool(broker_login_ok and (session_auth or list(cookies))),
+                "login_success": bool(broker_login_ok),
+                "cookie_session": bool(list(cookies)),
+                "auth_fields": sorted(session_auth.keys()),
+            })
+            return
 
         if parsed.path == "/api/orders/open":
             try:
