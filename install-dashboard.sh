@@ -81,13 +81,20 @@ login_parse_replacement = """            try:
             global session_auth
             session_auth = capture_session_auth(result)
 
-            if login_succeeded(result):
+            login_ok = login_succeeded(result)
+            if login_ok:
                 self.send_response(303)
                 self.send_header("Location", "/")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Content-Length", "0")
                 self.end_headers()
                 return
+
+            login_status = "ناموفق" if isinstance(result, dict) and "isSuccess" in result else "نامشخص"
+            error_code = result.get("errorCode") if isinstance(result, dict) else None
+            error_message = result.get("errorMessage") if isinstance(result, dict) else None
+            login_step = result.get("step") if isinstance(result, dict) else None
+            two_factor = result.get("twoFactorAuthentication") if isinstance(result, dict) else None
 
             keys = sorted(result.keys()) if isinstance(result, dict) else []
 """
@@ -175,6 +182,22 @@ replacement = '''    def do_GET(self):
         self.send_error(404)
 '''
 s = s[:start] + replacement + s[end:]
+
+
+if "login_status = \"ناموفق\"" in s and "ورود دومرحله‌ای:" not in s:
+    marker = "            self.send_html(page(details))"
+    details_prefix = '''            details = (
+                f"وضعیت ورود: {login_status}<br>"
+                f"کد خطا: {html.escape(str(error_code))}<br>"
+                f"پیام خطا: {html.escape(str(error_message))}<br>"
+                f"مرحله ورود: {html.escape(str(login_step))}<br>"
+                f"ورود دومرحله‌ای: {html.escape(str(two_factor))}<br>"
+                + details
+            )
+'''
+    if marker not in s:
+        raise SystemExit("Cannot locate login diagnostic response")
+    s = s.replace(marker, details_prefix + marker, 1)
 
 startup_start = s.find('print("Login portal listening')
 if startup_start < 0:
