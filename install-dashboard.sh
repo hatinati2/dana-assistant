@@ -27,8 +27,6 @@ if 'from pathlib import Path' not in s:
 
 if "import ipaddress\n" not in s:
     s = s.replace("import html\n", "import html\nimport ipaddress\n", 1)
-if "import ssl\n" not in s:
-    s = s.replace("import html\n", "import html\nimport ssl\n", 1)
 
 host_start = s.find("    def allowed_host(self):")
 host_end = s.find("\n    def do_GET(self):", host_start)
@@ -43,16 +41,14 @@ host_replacement = '''    def allowed_host(self):
             return False
 '''
 s = s[:host_start] + host_replacement + s[host_end:]
-old_server = 'print("Login portal listening on 127.0.0.1:8109")\nHTTPServer(("127.0.0.1", 8109), Handler).serve_forever()'
-new_server = '''print("Login portal listening with HTTPS on 0.0.0.0:8109")
-server = HTTPServer(("0.0.0.0", 8109), Handler)
-tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-tls.load_cert_chain("/etc/ssl/certs/dana-panel.crt", "/etc/ssl/private/dana-panel.key")
-server.socket = tls.wrap_socket(server.socket, server_side=True)
-server.serve_forever()'''
-if old_server not in s:
+# Replace any previous loopback or TLS startup block with plain HTTP.
+startup_start = s.find('print("Login portal listening')
+if startup_start < 0:
     raise SystemExit("Could not locate panel server startup; installer stopped")
-s = s.replace(old_server, new_server)
+s = s[:startup_start] + '''print("Login portal listening on 0.0.0.0:8109")
+HTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
+'''
+s = s.replace("import ssl\\n", "")
 
 start = s.find("    def do_GET(self):")
 end = s.find("\n    def do_POST(self):", start)
@@ -83,21 +79,6 @@ p.write_text(s, encoding="utf-8")
 PY
 
 "$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/login_portal.py"
-
-PUBLIC_IP="$(curl -4fsS --max-time 10 https://api.ipify.org || true)"
-if [ -z "$PUBLIC_IP" ]; then
-  echo "Could not detect public IPv4 address."
-  exit 1
-fi
-command -v openssl >/dev/null 2>&1 || { echo "OpenSSL is required."; exit 1; }
-install -d -m 700 /etc/ssl/private
-openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 365 \
-  -keyout /etc/ssl/private/dana-panel.key \
-  -out /etc/ssl/certs/dana-panel.crt \
-  -subj "/CN=$PUBLIC_IP" \
-  -addext "subjectAltName=IP:$PUBLIC_IP" >/dev/null 2>&1
-chmod 600 /etc/ssl/private/dana-panel.key
-chmod 644 /etc/ssl/certs/dana-panel.crt
 
 # Stop only the Python process currently listening on the panel port.
 python3 - <<'PY'
@@ -139,8 +120,8 @@ fi
 
 PUBLIC_IP="$(curl -4fsS --max-time 8 https://api.ipify.org || true)"
 if [ -n "$PUBLIC_IP" ]; then
-  echo "DIRECT PANEL URL: https://$PUBLIC_IP:8109"
+  echo "DIRECT PANEL URL: http://$PUBLIC_IP:8109"
 else
-  echo "Could not detect public IPv4. Use your VPS public IP with port 8109."
+  echo "Could not detect public IPv4. Use your VPS public IP with port 8109 over HTTP."
 fi
-echo "HTTPS is enabled with a self-signed certificate. The browser will show a certificate warning; verify the address is your VPS IP before proceeding."
+echo "Panel is running on plain HTTP as requested."
