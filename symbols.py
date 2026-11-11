@@ -89,8 +89,8 @@ def _pick(obj: dict, *names: str) -> str:
 def _map_shortcut(item: dict) -> dict | None:
     isin = _pick(item, "instrumentid", "instrumentId", "isin").upper()
     symbol = _pick(item, "instrument_Name", "instrumentName", "symbol", "ticker")
-    company = _pick(item, "company_Name_Persian", "companyNamePersian", "companyName", "company")
-    market = _pick(item, "marketcategoryname", "markettypename", "marketname", "marketType")
+    company = _pick(item, "company_Name_Persian", "companyNamePersian", "companyName", "company_name", "company")
+    market = _pick(item, "marketcategoryname", "markettypename", "marketname", "marketType", "market_type")
     if not symbol or not valid_isin(isin):
         return None
     return {
