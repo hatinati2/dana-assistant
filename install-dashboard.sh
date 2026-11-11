@@ -30,7 +30,7 @@ from pathlib import Path
 p = Path.home() / "dana-monitor" / "login_portal.py"
 s = p.read_text(encoding="utf-8")
 if "from datetime import datetime" not in s:
-    s = s.replace("import html\\n", "import html\\nfrom datetime import datetime\\n", 1)
+    s = s.replace("import html\n", "import html\nfrom datetime import datetime\n", 1)
 
 
 if 'from pathlib import Path' not in s:
