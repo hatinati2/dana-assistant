@@ -145,6 +145,7 @@ async function loadOpenOrders(){
   const response=await fetch("/api/orders/open",{cache:"no-store",headers:{"Accept":"application/json"}});
   const payload=await response.json();
   if(!response.ok||!payload.ok)throw new Error(payload.message||("خطای دریافت سفارش‌ها (HTTP "+response.status+")"));
+  if(!payload.session_ready)throw new Error("نشست دانا در این پنل ثبت نشده؛ ابتدا از بخش اتصال وارد شو.");
   const rows=findOrderRows(payload.data);
   if(rows===null)throw new Error("پاسخ دانا دریافت شد اما ساختار فهرست سفارش‌ها شناسایی نشد.");
   renderOpenOrders(rows);
