@@ -15,6 +15,18 @@
 .pagehead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:2px 0 14px}.pagehead h2{font-size:17px;margin:0}.sub{color:var(--muted);margin-top:6px;font-size:11px}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:15px;min-width:0}.metric-label{color:var(--muted);font-size:11px}.metric-value{font-size:19px;font-weight:bold;margin-top:12px}.metric-foot{font-size:10px;color:var(--muted);margin-top:7px}
 .split{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr);gap:13px}.card h3{font-size:13px;margin:0 0 13px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field{min-width:0}.field.wide{grid-column:1/-1}
+.symbol-control{position:relative}
+.symbol-suggestions{position:absolute;top:calc(100% + 4px);right:0;left:0;z-index:30;background:#fff;border:1px solid #d0d5dd;border-radius:10px;box-shadow:0 12px 26px rgba(16,24,40,.13);max-height:280px;overflow:auto}
+.symbol-suggestions[hidden]{display:none}
+.symbol-suggestion{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:10px 12px;border:0;border-bottom:1px solid #eaecf0;background:#fff;color:var(--ink);text-align:right;cursor:pointer}
+.symbol-suggestion:last-child{border-bottom:0}
+.symbol-suggestion:hover,.symbol-suggestion:focus{background:#eff8ff;outline:none}
+.symbol-main{display:flex;flex-direction:column;gap:4px;min-width:0}
+.symbol-name{font-weight:bold}.symbol-company{font-size:10px;color:var(--muted);white-space:normal}
+.symbol-isin{direction:ltr;font-size:10px;color:#475467;white-space:nowrap}
+.symbol-meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:5px;font-size:10px;color:var(--muted)}
+.symbol-meta b{font-weight:normal;color:var(--blue);direction:ltr}
+
 label{display:block;font-weight:bold;font-size:11px;margin-bottom:6px}input,select{width:100%;height:38px;padding:8px 10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:var(--ink);outline:none}
 input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.sidechoice{display:flex;gap:8px}.sidechoice button{flex:1;padding:10px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer}.sidechoice button.selected.buy{background:#ecfdf3;color:var(--green);border-color:#abefc6}.sidechoice button.selected.sell{background:#fef3f2;color:var(--red);border-color:#fecdca}
 .estimate{background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:12px;display:flex;justify-content:space-between;gap:10px;margin-top:12px}.estimate strong{font-size:15px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -47,7 +59,7 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 <div class="card"><div class="metric-label">سفارش‌های باز</div><div class="metric-value">ـــ</div><div class="metric-foot">در انتظار اتصال API</div></div>
 <div class="card"><div class="metric-label">معاملات امروز</div><div class="metric-value">ـــ</div><div class="metric-foot">در انتظار اتصال API</div></div></div>
 <div class="split"><section class="card"><h3>ثبت سریع سفارش</h3><div class="formgrid">
-<div class="field wide"><label>نماد</label><input id="quick-symbol" placeholder="نماد را وارد کن"></div>
+<div class="field wide"><label>نماد</label><div class="symbol-control"><input id="quick-symbol" placeholder="نام یا نماد شرکت را تایپ کن..." autocomplete="off" aria-autocomplete="list"><div id="quick-symbol-suggestions" class="symbol-suggestions" hidden></div></div><div class="symbol-meta"><span id="quick-symbol-status">برای جست‌وجو نماد را تایپ کن.</span><b id="quick-symbol-isin">ISIN: انتخاب نشده</b></div></div>
 <div class="field"><label>نوع سفارش</label><select id="quick-side"><option value="buy">خرید</option><option value="sell">فروش</option></select></div>
 <div class="field"><label>قیمت (ریال)</label><input id="quick-price" type="number" min="1" placeholder="قیمت"></div>
 <div class="field"><label>تعداد</label><input id="quick-qty" type="number" min="1" placeholder="تعداد"></div></div>
@@ -58,7 +70,7 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 <section class="view" id="view-ticket"><div class="pagehead"><div><h2>ثبت سفارش</h2><div class="sub">فرم آماده‌سازی سفارش خرید یا فروش</div></div></div>
 <div class="notice">این نسخه فقط پیش‌نویس سفارش را در همین نشست مرورگر نگه می‌دارد. ارسال واقعی سفارش تا تأیید قرارداد API دانا غیرفعال است.</div>
 <div class="split"><section class="card"><h3>مشخصات سفارش</h3><form id="order-form"><div class="formgrid">
-<div class="field wide"><label>نماد</label><input id="symbol" required maxlength="24" placeholder="نماد موردنظر"></div>
+<div class="field wide"><label>نماد</label><div class="symbol-control"><input id="symbol" required maxlength="24" placeholder="نام یا نماد شرکت را تایپ کن..." autocomplete="off" aria-autocomplete="list"><div id="symbol-suggestions" class="symbol-suggestions" hidden></div></div><div class="symbol-meta"><span id="symbol-status">برای جست‌وجو نماد را تایپ کن.</span><b id="symbol-isin-label">ISIN: انتخاب نشده</b></div><input id="symbol-isin" type="hidden"></div>
 <div class="field wide"><label>نوع سفارش</label><div class="sidechoice"><button type="button" class="selected buy" data-side="buy">خرید</button><button type="button" data-side="sell">فروش</button></div></div>
 <div class="field"><label>قیمت (ریال)</label><input id="price" type="number" min="1" step="1" required></div>
 <div class="field"><label>تعداد</label><input id="quantity" type="number" min="1" step="1" required></div>
@@ -82,8 +94,77 @@ const fmt=n=>new Intl.NumberFormat("fa-IR").format(n);
 function total(p,q,target){const a=Number(document.getElementById(p).value||0),b=Number(document.getElementById(q).value||0);document.getElementById(target).textContent=a>0&&b>0?fmt(a*b)+" ریال":"ـــ";}
 ["quick-price","quick-qty"].forEach(id=>document.getElementById(id).addEventListener("input",()=>total("quick-price","quick-qty","quick-total")));
 ["price","quantity"].forEach(id=>document.getElementById(id).addEventListener("input",()=>total("price","quantity","order-total")));
-document.getElementById("go-ticket").addEventListener("click",()=>{document.getElementById("symbol").value=document.getElementById("quick-symbol").value;document.getElementById("price").value=document.getElementById("quick-price").value;document.getElementById("quantity").value=document.getElementById("quick-qty").value;document.querySelector('[data-side="'+document.getElementById("quick-side").value+'"]').click();showView("ticket");total("price","quantity","order-total");});
+
+function createSymbolPicker(inputId,listId,statusId,isinId){
+ const input=document.getElementById(inputId),list=document.getElementById(listId),status=document.getElementById(statusId),isinLabel=document.getElementById(isinId);
+ let selected=null,timer=null,controller=null,sequence=0;
+ function close(){list.hidden=true;list.replaceChildren();}
+ function setSelected(item){
+  selected=item;input.value=item.symbol||"";isinLabel.textContent="ISIN: "+(item.isin||"—");
+  status.textContent=[item.company_name,item.market_type].filter(Boolean).join(" · ")||"نماد انتخاب شد";
+  close();input.setCustomValidity("");
+ }
+ function render(items,query){
+  list.replaceChildren();
+  if(!items.length){close();status.textContent="برای «"+query+"» نمادی پیدا نشد.";return;}
+  for(const item of items){
+   const button=document.createElement("button");button.type="button";button.className="symbol-suggestion";
+   const main=document.createElement("span");main.className="symbol-main";
+   const name=document.createElement("span");name.className="symbol-name";name.textContent=item.symbol||"";
+   const company=document.createElement("span");company.className="symbol-company";
+   company.textContent=[item.company_name,item.market_type].filter(Boolean).join(" · ");
+   main.append(name,company);
+   const isin=document.createElement("span");isin.className="symbol-isin";isin.textContent=item.isin||"";
+   button.append(main,isin);button.addEventListener("click",()=>setSelected(item));list.append(button);
+  }
+  list.hidden=false;status.textContent=items.length+" نتیجه؛ نماد درست را انتخاب کن.";
+ }
+ input.addEventListener("input",()=>{
+  selected=null;isinLabel.textContent="ISIN: انتخاب نشده";input.setCustomValidity("");
+  const q=input.value.trim();sequence++;const current=sequence;
+  if(timer)clearTimeout(timer);if(controller)controller.abort();
+  close();
+  if(!q){status.textContent="برای جست‌وجو نماد را تایپ کن.";return;}
+  status.textContent="در حال جست‌وجوی فهرست نمادها…";
+  timer=setTimeout(async()=>{
+   controller=new AbortController();
+   try{
+    const response=await fetch("/api/symbols/suggest?q="+encodeURIComponent(q),{cache:"no-store",signal:controller.signal,headers:{"Accept":"application/json"}});
+    const data=await response.json();
+    if(current!==sequence)return;
+    if(!response.ok)throw new Error(data.error||"جست‌وجوی نماد ناموفق بود");
+    render(Array.isArray(data)?data:[],q);
+   }catch(error){if(error.name==="AbortError")return;if(current===sequence){status.textContent="فهرست نمادها فعلاً در دسترس نیست؛ دوباره تلاش کن.";}}
+  },280);
+ });
+ input.addEventListener("keydown",e=>{if(e.key==="Escape")close();});
+ document.addEventListener("click",e=>{if(!e.target.closest("#"+listId)&&e.target!==input)close();});
+ return {getSelected:()=>selected,setSelected,clear(){selected=null;isinLabel.textContent="ISIN: انتخاب نشده";status.textContent="نماد را از پیشنهادها انتخاب کن.";},setText(value){input.value=value||"";}};
+}
+const quickPicker=createSymbolPicker("quick-symbol","quick-symbol-suggestions","quick-symbol-status","quick-symbol-isin");
+const orderPicker=createSymbolPicker("symbol","symbol-suggestions","symbol-status","symbol-isin-label");
+
+document.getElementById("go-ticket").addEventListener("click",()=>{
+ const quick=quickPicker.getSelected();
+ if(quick)orderPicker.setSelected(quick);else{orderPicker.clear();orderPicker.setText(document.getElementById("quick-symbol").value);}
+ document.getElementById("price").value=document.getElementById("quick-price").value;
+ document.getElementById("quantity").value=document.getElementById("quick-qty").value;
+ document.querySelector('[data-side="'+document.getElementById("quick-side").value+'"]').click();
+ showView("ticket");total("price","quantity","order-total");
+});
 let side="buy";document.querySelectorAll("[data-side]").forEach(b=>b.addEventListener("click",()=>{side=b.dataset.side;document.querySelectorAll("[data-side]").forEach(x=>x.classList.remove("selected","buy","sell"));b.classList.add("selected",side);}));
 document.getElementById("validity").addEventListener("change",e=>document.getElementById("validity-date").disabled=e.target.value!=="gtc");
-document.getElementById("order-form").addEventListener("submit",e=>{e.preventDefault();const d={symbol:document.getElementById("symbol").value.trim(),side,price:Number(document.getElementById("price").value),quantity:Number(document.getElementById("quantity").value),validity:document.getElementById("validity").value,validityDate:document.getElementById("validity-date").value,createdAt:new Date().toISOString()};if(!d.symbol||d.price<1||d.quantity<1)return;try{const a=JSON.parse(sessionStorage.getItem("dana_drafts")||"[]");a.push(d);sessionStorage.setItem("dana_drafts",JSON.stringify(a));}catch(_){}const t=document.getElementById("draft-toast");t.classList.add("show");setTimeout(()=>t.classList.remove("show"),3500);});
+document.getElementById("order-form").addEventListener("submit",e=>{
+ e.preventDefault();
+ const instrument=orderPicker.getSelected();
+ if(!instrument){document.getElementById("symbol-status").textContent="نماد را حتماً از فهرست پیشنهادها انتخاب کن تا ISIN دقیق ثبت شود.";document.getElementById("symbol").focus();return;}
+ const d={symbol:instrument.symbol,isin:instrument.isin,company_name:instrument.company_name,market_type:instrument.market_type,side,price:Number(document.getElementById("price").value),quantity:Number(document.getElementById("quantity").value),validity:document.getElementById("validity").value,validityDate:document.getElementById("validity-date").value,createdAt:new Date().toISOString()};
+ if(!d.symbol||!d.isin||d.price<1||d.quantity<1)return;
+ try{const a=JSON.parse(sessionStorage.getItem("dana_drafts")||"[]");a.push(d);sessionStorage.setItem("dana_drafts",JSON.stringify(a));}catch(_){}
+ const t=document.getElementById("draft-toast");t.textContent="پیش‌نویس "+d.symbol+" با ISIN "+d.isin+" در همین مرورگر ذخیره شد.";t.classList.add("show");setTimeout(()=>t.classList.remove("show"),4500);
+});
+fetch("/api/symbols/status",{cache:"no-store"}).then(r=>r.json()).then(d=>{
+ const text=d.count?("فهرست پشتیبان "+fmt(d.count)+" نماد · "+(d.updated_at?"به‌روزرسانی "+d.updated_at:"در حال دریافت")):"جست‌وجو از فهرست بورس تهران";
+ document.getElementById("symbol-status").textContent=text;
+}).catch(()=>{});
 </script></body></html>
