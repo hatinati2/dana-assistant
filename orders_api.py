@@ -32,6 +32,14 @@ def capture_session_auth(payload):
     return found
 
 
+def login_succeeded(payload):
+    """Return True only when Dana explicitly marks the login as successful."""
+    if not isinstance(payload, dict):
+        return False
+    value = payload.get("isSuccess")
+    return value is True or (isinstance(value, str) and value.strip().lower() == "true")
+
+
 def fetch_open_orders(opener, cookies, session_auth):
     """Fetch active orders (type=1) using the login CookieJar and auth fields."""
     url = "https://api-dana.ephoenix.ir/api/v2/orders/GetOpenOrders?type=1"
