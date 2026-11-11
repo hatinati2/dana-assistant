@@ -35,6 +35,7 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 .statusline{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;margin:10px 0}.dot{width:8px;height:8px;border-radius:50%;background:#f79009;display:inline-block}
 .tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;white-space:nowrap}th,td{text-align:right;padding:11px 9px;border-bottom:1px solid #eaecf0;font-size:11px}th{color:var(--muted);font-weight:normal;background:#fafbfc}.empty{text-align:center!important;color:var(--muted);padding:32px!important;white-space:normal}
 .toast{display:none;margin:12px 0;padding:11px;border-radius:9px;background:#ecfdf3;color:var(--green)}.toast.show{display:block}.loginbox{max-width:650px}.loginbox p{line-height:2;color:var(--muted)}.footer{color:var(--muted);font-size:10px;text-align:center;margin:18px 0}
+.open-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.open-head-actions .secondary{white-space:nowrap}
 @media(max-width:1000px){.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}.split{grid-template-columns:1fr}}
 @media(max-width:700px){.shell{padding:9px}.layout{grid-template-columns:1fr}.sidebar{display:flex;overflow:auto;gap:3px;padding:6px}.navbtn{width:auto;white-space:nowrap;padding:10px}.side-note{display:none}.topbar{align-items:flex-start;flex-direction:column}}
 @media(max-width:430px){.grid4{grid-template-columns:1fr 1fr}.formgrid{grid-template-columns:1fr}.field.wide{grid-column:auto}.metric-value{font-size:16px}}
@@ -79,7 +80,7 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 <div class="estimate"><span>ارزش ناخالص سفارش</span><strong id="order-total">۰ ریال</strong></div>
 <div class="actions"><button class="primary" type="submit">ذخیره پیش‌نویس</button><button class="secondary disabled" type="button" disabled>ارسال به کارگزاری</button></div></form><div id="draft-toast" class="toast">پیش‌نویس در همین مرورگر ذخیره شد.</div></section>
 <section class="card"><h3>خلاصه و کنترل سفارش</h3><div class="statusline"><span class="dot"></span> مسیر API: غیرفعال</div><div class="info">پس از تکمیل اتصال دانا، کنترل موجودی، محدودیت قیمت و اعتبار سفارش به این بخش اضافه می‌شود. تا آن زمان هیچ سفارشی به کارگزاری ارسال نخواهد شد.</div><div style="margin-top:14px;color:var(--muted);font-size:11px;line-height:2">قیمت به ریال وارد می‌شود.<br>تعداد به واحد سهم وارد می‌شود.<br>ارزش نمایش‌داده‌شده بدون کارمزد است.</div></section></div></section>
-<section class="view" id="view-open"><div class="pagehead"><div><h2>سفارش‌های باز</h2><div class="sub">سفارش‌های ثبت‌شده و در انتظار انجام</div></div><span class="pill off">اتصال خواندنی هنوز فعال نیست</span></div><section class="card"><div class="tablewrap"><table><thead><tr><th>نماد</th><th>سمت</th><th>قیمت</th><th>تعداد</th><th>انجام‌شده</th><th>باقی‌مانده</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody><tr><td colspan="8" class="empty">برای نمایش سفارش‌های باز باید نشست و API خواندنی دانا متصل شود.</td></tr></tbody></table></div></section></section>
+<section class="view" id="view-open"><div class="pagehead"><div><h2>سفارش‌های فعال</h2><div class="sub">سفارش‌های ثبت‌شده و در انتظار انجام در حساب دانا</div><div id="open-orders-updated" class="sub">هنوز به‌روزرسانی نشده</div></div><div class="open-head-actions"><span id="open-orders-status" class="pill off">در انتظار اتصال</span><button id="refresh-open-orders" class="secondary" type="button">به‌روزرسانی</button></div></div><section class="card"><div class="tablewrap"><table><thead><tr><th>نماد</th><th>سمت</th><th>قیمت</th><th>تعداد</th><th>انجام‌شده</th><th>باقی‌مانده</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="open-orders-body"><tr><td colspan="8" class="empty">برای دریافت سفارش‌ها ابتدا از بخش اتصال به دانا وارد شو.</td></tr></tbody></table></div></section><div class="sub" style="margin-top:9px">این بخش فقط اطلاعات سفارش‌ها را می‌خواند؛ ویرایش یا لغو سفارش از این صفحه انجام نمی‌شود.</div></section>
 <section class="view" id="view-history"><div class="pagehead"><div><h2>تاریخچه سفارش‌ها</h2><div class="sub">سوابق سفارش و معاملات انجام‌شده</div></div></div><section class="card"><div class="tablewrap"><table><thead><tr><th>تاریخ</th><th>نماد</th><th>نوع</th><th>قیمت</th><th>تعداد</th><th>انجام‌شده</th><th>وضعیت</th></tr></thead><tbody><tr><td colspan="7" class="empty">تاریخچه پس از اتصال سرویس سفارش‌ها نمایش داده می‌شود.</td></tr></tbody></table></div></section></section>
 <section class="view" id="view-settings"><div class="pagehead"><div><h2>تنظیمات اتصال</h2><div class="sub">ورود به حساب کارگزاری دانا و وضعیت ارتباط</div></div></div>
 <section class="card loginbox"><h3>اتصال به دانا</h3><p>ورود با نام کاربری، رمز عبور و کپچای دستی انجام می‌شود. پس از احراز هویت، ساختار نشست و APIهای فقط‌خواندنی تکمیل خواهد شد.</p><div class="statusline"><span class="dot"></span> وضعیت نشست: هنوز تأیید نشده</div><a class="primary" href="/login">باز کردن صفحه ورود دانا</a></section>
@@ -88,8 +89,77 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 </main></div><div class="footer">پنل دانا · رابط آزمایشی · پورت 8109</div></div>
 <script>
 const nav=[...document.querySelectorAll(".navbtn")],views=[...document.querySelectorAll(".view")];
-function showView(name){nav.forEach(b=>b.classList.toggle("active",b.dataset.view===name));views.forEach(v=>v.classList.toggle("active",v.id==="view-"+name));}
+function showView(name){nav.forEach(b=>b.classList.toggle("active",b.dataset.view===name));views.forEach(v=>v.classList.toggle("active",v.id==="view-"+name));if(name==="open")loadOpenOrders();}
 nav.forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));
+
+let openOrdersLoading=false;
+function orderField(item,names){
+ const lower=new Map(Object.entries(item||{}).map(([k,v])=>[k.toLowerCase(),v]));
+ for(const name of names){const value=lower.get(name.toLowerCase());if(value!==undefined&&value!==null&&value!=="")return value;}
+ return undefined;
+}
+function findOrderRows(value,depth=0){
+ if(Array.isArray(value))return value;
+ if(!value||typeof value!=="object"||depth>6)return null;
+ const preferred=["data","orders","openorders","items","result","records","list","rows"];
+ for(const name of preferred){const key=Object.keys(value).find(k=>k.toLowerCase()===name);if(key){const found=findOrderRows(value[key],depth+1);if(found!==null)return found;}}
+ for(const nested of Object.values(value)){if(nested&&typeof nested==="object"){const found=findOrderRows(nested,depth+1);if(found!==null)return found;}}
+ return null;
+}
+function orderText(value){
+ if(value===undefined||value===null||value==="")return "—";
+ if(typeof value==="number"||(typeof value==="string"&&/^\\d+(\\.\\d+)?$/.test(value)))return fmt(Number(value));
+ return String(value);
+}
+function orderSide(value){
+ const text=String(value??"").toLowerCase();
+ if(text==="1"||text.includes("buy")||text.includes("خرید"))return "خرید";
+ if(text==="2"||text.includes("sell")||text.includes("فروش"))return "فروش";
+ return text||"—";
+}
+function renderOpenOrders(rows){
+ const body=document.getElementById("open-orders-body");body.replaceChildren();
+ if(!rows.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=8;td.className="empty";td.textContent="در حال حاضر سفارش فعالی برای نمایش وجود ندارد.";tr.append(td);body.append(tr);return;}
+ for(const item of rows){
+  const instrument=orderField(item,["instrument","instrumentInfo","share","security"])||{};
+  const symbol=orderField(item,["symbol","symbolName","instrumentName","ticker","instrumentSymbol"])||orderField(instrument,["symbol","symbolName","name"]);
+  const side=orderSide(orderField(item,["side","orderSide","tradeSide","transactionType","orderType"]));
+  const price=orderField(item,["price","orderPrice","limitPrice"]);
+  const quantity=orderField(item,["volume","quantity","orderVolume","orderQty","totalVolume"]);
+  const done=orderField(item,["tradedVolume","executedVolume","filledVolume","matchedVolume","doneVolume"]);
+  let remaining=orderField(item,["remainingVolume","remainVolume","unmatchedVolume","remainingQuantity","remainedVolume"]);
+  if(remaining===undefined&&quantity!==undefined&&done!==undefined&&Number.isFinite(Number(quantity))&&Number.isFinite(Number(done)))remaining=Math.max(0,Number(quantity)-Number(done));
+  const status=orderField(item,["statusText","orderStatusTitle","status","orderStatus","state","stateTitle"]);
+  const values=[symbol,side,orderText(price),orderText(quantity),orderText(done),orderText(remaining),orderText(status),"—"];
+  const tr=document.createElement("tr");
+  for(const value of values){const td=document.createElement("td");td.textContent=value===undefined||value===null||value===""?"—":String(value);tr.append(td);}
+  body.append(tr);
+ }
+}
+async function loadOpenOrders(){
+ if(openOrdersLoading)return;
+ openOrdersLoading=true;
+ const status=document.getElementById("open-orders-status"),button=document.getElementById("refresh-open-orders"),updated=document.getElementById("open-orders-updated");
+ status.textContent="در حال دریافت…";status.className="pill off";button.disabled=true;button.textContent="در حال دریافت…";
+ try{
+  const response=await fetch("/api/orders/open",{cache:"no-store",headers:{"Accept":"application/json"}});
+  const payload=await response.json();
+  if(!response.ok||!payload.ok)throw new Error(payload.message||("خطای دریافت سفارش‌ها (HTTP "+response.status+")"));
+  const rows=findOrderRows(payload.data);
+  if(rows===null)throw new Error("پاسخ دانا دریافت شد اما ساختار فهرست سفارش‌ها شناسایی نشد.");
+  renderOpenOrders(rows);
+  status.textContent=rows.length?fmt(rows.length)+" سفارش فعال":"بدون سفارش فعال";status.className="pill on";
+  updated.textContent="آخرین بررسی: "+new Date().toLocaleTimeString("fa-IR");
+ }catch(error){
+  const body=document.getElementById("open-orders-body");body.replaceChildren();
+  const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=8;td.className="empty";
+  td.textContent=error.message||"دریافت سفارش‌ها ناموفق بود.";tr.append(td);body.append(tr);
+  status.textContent="اتصال ناموفق";status.className="pill off";
+ }finally{openOrdersLoading=false;button.disabled=false;button.textContent="به‌روزرسانی";}
+}
+document.getElementById("refresh-open-orders").addEventListener("click",loadOpenOrders);
+setInterval(()=>{if(document.getElementById("view-open").classList.contains("active"))loadOpenOrders();},30000);
+
 const fmt=n=>new Intl.NumberFormat("fa-IR").format(n);
 function total(p,q,target){const a=Number(document.getElementById(p).value||0),b=Number(document.getElementById(q).value||0);document.getElementById(target).textContent=a>0&&b>0?fmt(a*b)+" ریال":"ـــ";}
 ["quick-price","quick-qty"].forEach(id=>document.getElementById(id).addEventListener("input",()=>total("quick-price","quick-qty","quick-total")));
