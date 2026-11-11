@@ -166,6 +166,6 @@ document.getElementById("order-form").addEventListener("submit",e=>{
 });
 fetch("/api/symbols/status",{cache:"no-store"}).then(r=>r.json()).then(d=>{
  const text=d.count?("فهرست پشتیبان "+fmt(d.count)+" نماد · "+(d.updated_at?"به‌روزرسانی "+d.updated_at:"در حال دریافت")):"جست‌وجو از فهرست بورس تهران";
- document.getElementById("symbol-status").textContent=text;
+ if(!document.getElementById("symbol").value.trim())document.getElementById("symbol-status").textContent=text;
 }).catch(()=>{});
 </script></body></html>
