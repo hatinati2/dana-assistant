@@ -42,7 +42,7 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 </style></head>
 <body><div class="shell">
 <header class="topbar"><div class="brand"><div class="logo">د</div><div><h1>پنل معاملات دانا</h1><small>مدیریت سفارش‌ها و پایش بازار</small></div></div>
-<div class="top-actions"><span class="pill">ساعت سرور: ـــ</span><span class="pill off"><span class="dot"></span> اتصال کارگزاری: بررسی نشده</span><a class="primary" href="/login">ورود به دانا</a></div></header>
+<div class="top-actions"><span class="pill">ساعت سرور: ـــ</span><span id="broker-connection-pill" class="pill off">اتصال کارگزاری: در حال بررسی</span><a class="primary" href="/login">ورود به دانا</a></div></header>
 <div class="layout">
 <aside class="sidebar">
 <button class="navbtn active" data-view="dashboard"><span class="navicon">▦</span> داشبورد</button>
@@ -83,14 +83,38 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 <section class="view" id="view-open"><div class="pagehead"><div><h2>سفارش‌های فعال</h2><div class="sub">سفارش‌های ثبت‌شده و در انتظار انجام در حساب دانا</div><div id="open-orders-updated" class="sub">هنوز به‌روزرسانی نشده</div></div><div class="open-head-actions"><span id="open-orders-status" class="pill off">در انتظار اتصال</span><button id="refresh-open-orders" class="secondary" type="button">به‌روزرسانی</button></div></div><section class="card"><div class="tablewrap"><table><thead><tr><th>نماد</th><th>سمت</th><th>قیمت</th><th>تعداد</th><th>انجام‌شده</th><th>باقی‌مانده</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="open-orders-body"><tr><td colspan="8" class="empty">برای دریافت سفارش‌ها ابتدا از بخش اتصال به دانا وارد شو.</td></tr></tbody></table></div></section><div class="sub" style="margin-top:9px">این بخش فقط اطلاعات سفارش‌ها را می‌خواند؛ ویرایش یا لغو سفارش از این صفحه انجام نمی‌شود.</div></section>
 <section class="view" id="view-history"><div class="pagehead"><div><h2>تاریخچه سفارش‌ها</h2><div class="sub">سوابق سفارش و معاملات انجام‌شده</div></div></div><section class="card"><div class="tablewrap"><table><thead><tr><th>تاریخ</th><th>نماد</th><th>نوع</th><th>قیمت</th><th>تعداد</th><th>انجام‌شده</th><th>وضعیت</th></tr></thead><tbody><tr><td colspan="7" class="empty">تاریخچه پس از اتصال سرویس سفارش‌ها نمایش داده می‌شود.</td></tr></tbody></table></div></section></section>
 <section class="view" id="view-settings"><div class="pagehead"><div><h2>تنظیمات اتصال</h2><div class="sub">ورود به حساب کارگزاری دانا و وضعیت ارتباط</div></div></div>
-<section class="card loginbox"><h3>اتصال به دانا</h3><p>ورود با نام کاربری، رمز عبور و کپچای دستی انجام می‌شود. پس از احراز هویت، ساختار نشست و APIهای فقط‌خواندنی تکمیل خواهد شد.</p><div class="statusline"><span class="dot"></span> وضعیت نشست: هنوز تأیید نشده</div><a class="primary" href="/login">باز کردن صفحه ورود دانا</a></section>
+<section class="card loginbox"><h3>اتصال به دانا</h3><p>ورود با نام کاربری، رمز عبور و کپچای دستی انجام می‌شود. پس از احراز هویت، ساختار نشست و APIهای فقط‌خواندنی تکمیل خواهد شد.</p><div id="broker-session-status" class="statusline"><span class="dot"></span> وضعیت نشست: در حال بررسی</div><a class="primary" href="/login">باز کردن صفحه ورود دانا</a></section>
 <section class="card" style="margin-top:13px"><h3>وضعیت اجزای پنل</h3><div class="tablewrap"><table><tbody>
 <tr><td>نمای داشبورد و فرم سفارش</td><td>آماده</td></tr><tr><td>ورود دستی با کپچا</td><td>آماده آزمون</td></tr><tr><td>دریافت سفارش‌های باز</td><td>در انتظار تکمیل نشست</td></tr><tr><td>تاریخچه و معاملات</td><td>در انتظار اتصال خواندنی</td></tr><tr><td>ارسال، ویرایش و لغو واقعی</td><td>غیرفعال تا تأیید قرارداد API</td></tr></tbody></table></div></section></section>
 </main></div><div class="footer">پنل دانا · رابط آزمایشی · پورت 8109</div></div>
 <script>
+
+async function loadBrokerStatus(){
+ const pill=document.getElementById("broker-connection-pill");
+ const detail=document.getElementById("broker-session-status");
+ try{
+  const response=await fetch("/api/broker/status",{cache:"no-store",headers:{"Accept":"application/json"}});
+  const state=await response.json();
+  if(!response.ok)throw new Error("HTTP "+response.status);
+  const connected=state.connected===true;
+  pill.textContent=connected?"اتصال کارگزاری: برقرار":"اتصال کارگزاری: نیاز به ورود";
+  pill.className=connected?"pill on":"pill off";
+  if(detail){
+   detail.replaceChildren();
+   const dot=document.createElement("span");dot.className="dot";dot.style.background=connected?"#12b76a":"#f79009";
+   detail.append(dot,document.createTextNode(connected?" نشست ورود دانا روی سرور فعال است.":" نشست ورود تأیید نشده؛ از صفحه ورود دانا وارد شو."));
+  }
+ }catch(_){
+  pill.textContent="اتصال کارگزاری: نامشخص";pill.className="pill off";
+  if(detail)detail.textContent="وضعیت نشست از سرور دریافت نشد.";
+ }
+}
+
 const nav=[...document.querySelectorAll(".navbtn")],views=[...document.querySelectorAll(".view")];
 function showView(name){nav.forEach(b=>b.classList.toggle("active",b.dataset.view===name));views.forEach(v=>v.classList.toggle("active",v.id==="view-"+name));if(name==="open")loadOpenOrders();}
 nav.forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));
+loadBrokerStatus();
+setInterval(loadBrokerStatus,15000);
 
 let openOrdersLoading=false;
 function orderField(item,names){
