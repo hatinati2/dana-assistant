@@ -103,7 +103,7 @@ class ScheduledOrderStoreTests(unittest.TestCase):
 
     def test_past_schedule_is_rejected(self):
         fields = self.fields()
-        fields["execute_at_date"] = "1405/08/20"
+        fields["execute_at_date"] = "1405/08/19"
         with self.assertRaises(ValueError):
             self.store.create_order(fields, now=self.now)
 
