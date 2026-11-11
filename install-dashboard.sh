@@ -16,9 +16,13 @@ curl -fsSL "$RAW/dashboard.html" -o "$APP_DIR/dashboard.html.tmp"
 mv "$APP_DIR/dashboard.html.tmp" "$APP_DIR/dashboard.html"
 curl -fsSL "$RAW/symbols.py" -o "$APP_DIR/symbols.py.tmp"
 mv "$APP_DIR/symbols.py.tmp" "$APP_DIR/symbols.py"
+curl -fsSL "$RAW/orders_api.py" -o "$APP_DIR/orders_api.py.tmp"
+mv "$APP_DIR/orders_api.py.tmp" "$APP_DIR/orders_api.py"
 mkdir -p "$APP_DIR/tests"
 curl -fsSL "$RAW/tests/test_symbols.py" -o "$APP_DIR/tests/test_symbols.py.tmp"
 mv "$APP_DIR/tests/test_symbols.py.tmp" "$APP_DIR/tests/test_symbols.py"
+curl -fsSL "$RAW/tests/test_orders_api.py" -o "$APP_DIR/tests/test_orders_api.py.tmp"
+mv "$APP_DIR/tests/test_orders_api.py.tmp" "$APP_DIR/tests/test_orders_api.py"
 
 python3 - <<'PY'
 from pathlib import Path
@@ -51,6 +55,38 @@ if "from symbols import start_symbol_refresh, suggest_symbols, symbol_catalog_st
         marker + "\nfrom symbols import start_symbol_refresh, suggest_symbols, symbol_catalog_status",
         1,
     )
+
+if "from orders_api import capture_session_auth, fetch_open_orders" not in s:
+    marker = "from symbols import start_symbol_refresh, suggest_symbols, symbol_catalog_status"
+    if marker not in s:
+        raise SystemExit("Cannot locate symbols import for orders API")
+    s = s.replace(
+        marker,
+        marker + "\nfrom orders_api import capture_session_auth, fetch_open_orders\nsession_auth = {}",
+        1,
+    )
+
+login_parse_marker = """            try:
+                result = json.loads(raw) if raw else None
+            except Exception:
+                result = None
+
+            keys = sorted(result.keys()) if isinstance(result, dict) else []
+"""
+login_parse_replacement = """            try:
+                result = json.loads(raw) if raw else None
+            except Exception:
+                result = None
+
+            global session_auth
+            session_auth = capture_session_auth(result)
+
+            keys = sorted(result.keys()) if isinstance(result, dict) else []
+"""
+if "session_auth = capture_session_auth(result)" not in s:
+    if login_parse_marker not in s:
+        raise SystemExit("Cannot locate login response parser")
+    s = s.replace(login_parse_marker, login_parse_replacement, 1)
 
 if "    def send_json(self, data, status=200):" not in s:
     marker = "    def allowed_host(self):"
@@ -94,6 +130,13 @@ replacement = '''    def do_GET(self):
 
         parsed = urlsplit(self.path)
 
+        if parsed.path == "/api/orders/open":
+            try:
+                self.send_json(fetch_open_orders(opener, cookies, session_auth))
+            except Exception:
+                self.send_json({"ok": False, "status": 0, "message": "دریافت سفارش‌های فعال ناموفق بود."}, 502)
+            return
+
         if parsed.path == "/api/symbols/suggest":
             query = parse_qs(parsed.query).get("q", [""])[0]
             if not query.strip():
@@ -135,7 +178,7 @@ HTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
 p.write_text(s, encoding="utf-8")
 PY
 "$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/login_portal.py" "$APP_DIR/symbols.py"
-"$APP_DIR/.venv/bin/python" -m unittest discover -s "$APP_DIR/tests" -p 'test_symbols.py' -v
+"$APP_DIR/.venv/bin/python" -m unittest discover -s "$APP_DIR/tests" -v
 
 # Stop only the Python process currently listening on the panel port.
 python3 - <<'PY'
