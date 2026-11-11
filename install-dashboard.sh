@@ -56,7 +56,7 @@ if "from symbols import start_symbol_refresh, suggest_symbols, symbol_catalog_st
         1,
     )
 
-if "from orders_api import capture_session_auth, fetch_open_orders" not in s:
+if "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded" not in s:
     marker = "from symbols import start_symbol_refresh, suggest_symbols, symbol_catalog_status"
     if marker not in s:
         raise SystemExit("Cannot locate symbols import for orders API")
@@ -80,6 +80,14 @@ login_parse_replacement = """            try:
 
             global session_auth
             session_auth = capture_session_auth(result)
+
+            if login_succeeded(result):
+                self.send_response(303)
+                self.send_header("Location", "/")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
 
             keys = sorted(result.keys()) if isinstance(result, dict) else []
 """
