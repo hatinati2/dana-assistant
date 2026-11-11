@@ -105,7 +105,7 @@ def is_valid_jalali_date(year: int, month: int, day: int) -> bool:
 
 
 def _g2d(gy: int, gm: int, gd: int) -> int:
-    d = ((gy + ((gm - 8) // 6) + 100100) * 1461) // 4
+    d = ((gy + int((gm - 8) / 6) + 100100) * 1461) // 4
     d += (153 * ((gm + 9) % 12) + 2) // 5
     d += gd - 34840408
     d -= ((((gy + 100100 + ((gm - 8) // 6)) // 100) * 3) // 4)
@@ -119,7 +119,7 @@ def _d2g(jdn: int) -> tuple[int, int, int]:
     i = ((j % 1461) // 4) * 5 + 308
     gd = ((i % 153) // 5) + 1
     gm = ((i // 153) % 12) + 1
-    gy = (j // 1461) - 100100 + ((8 - gm) // 6)
+    gy = (j // 1461) - 100100 + int((8 - gm) / 6)
     return gy, gm, gd
 
 
