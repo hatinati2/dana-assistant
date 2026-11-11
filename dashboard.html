@@ -101,6 +101,7 @@ function createSymbolPicker(inputId,listId,statusId,isinId){
  function close(){list.hidden=true;list.replaceChildren();}
  function setSelected(item){
   selected=item;input.value=item.symbol||"";isinLabel.textContent="ISIN: "+(item.isin||"—");
+  if(inputId==="symbol")document.getElementById("symbol-isin").value=item.isin||"";
   status.textContent=[item.company_name,item.market_type].filter(Boolean).join(" · ")||"نماد انتخاب شد";
   close();input.setCustomValidity("");
  }
@@ -120,7 +121,7 @@ function createSymbolPicker(inputId,listId,statusId,isinId){
   list.hidden=false;status.textContent=items.length+" نتیجه؛ نماد درست را انتخاب کن.";
  }
  input.addEventListener("input",()=>{
-  selected=null;isinLabel.textContent="ISIN: انتخاب نشده";input.setCustomValidity("");
+  selected=null;isinLabel.textContent="ISIN: انتخاب نشده";if(inputId==="symbol")document.getElementById("symbol-isin").value="";input.setCustomValidity("");
   const q=input.value.trim();sequence++;const current=sequence;
   if(timer)clearTimeout(timer);if(controller)controller.abort();
   close();
@@ -139,7 +140,7 @@ function createSymbolPicker(inputId,listId,statusId,isinId){
  });
  input.addEventListener("keydown",e=>{if(e.key==="Escape")close();});
  document.addEventListener("click",e=>{if(!e.target.closest("#"+listId)&&e.target!==input)close();});
- return {getSelected:()=>selected,setSelected,clear(){selected=null;isinLabel.textContent="ISIN: انتخاب نشده";status.textContent="نماد را از پیشنهادها انتخاب کن.";},setText(value){input.value=value||"";}};
+ return {getSelected:()=>selected,setSelected,clear(){selected=null;isinLabel.textContent="ISIN: انتخاب نشده";if(inputId==="symbol")document.getElementById("symbol-isin").value="";status.textContent="نماد را از پیشنهادها انتخاب کن.";},setText(value){input.value=value||"";}};
 }
 const quickPicker=createSymbolPicker("quick-symbol","quick-symbol-suggestions","quick-symbol-status","quick-symbol-isin");
 const orderPicker=createSymbolPicker("symbol","symbol-suggestions","symbol-status","symbol-isin-label");
