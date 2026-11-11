@@ -14,10 +14,11 @@ rm -f /etc/ssl/certs/dana-panel.crt /etc/ssl/private/dana-panel.key
 
 curl -fsSL "$RAW/dashboard.html" -o "$APP_DIR/dashboard.html.tmp"
 mv "$APP_DIR/dashboard.html.tmp" "$APP_DIR/dashboard.html"
+curl -fsSL "$RAW/symbols.py" -o "$APP_DIR/symbols.py.tmp"
+mv "$APP_DIR/symbols.py.tmp" "$APP_DIR/symbols.py"
 
 python3 - <<'PY'
 from pathlib import Path
-import re
 
 p = Path.home() / "dana-monitor" / "login_portal.py"
 s = p.read_text(encoding="utf-8")
@@ -31,10 +32,43 @@ if 'from pathlib import Path' not in s:
 if "import ipaddress\n" not in s:
     s = s.replace("import html\n", "import html\nimport ipaddress\n", 1)
 
+if "from urllib.parse import parse_qs, urlsplit" not in s:
+    s = s.replace(
+        "from urllib.parse import parse_qs",
+        "from urllib.parse import parse_qs, urlsplit",
+        1,
+    )
+
+if "from symbols import start_symbol_refresh, suggest_symbols, symbol_catalog_status" not in s:
+    marker = "from urllib.parse import parse_qs, urlsplit"
+    if marker not in s:
+        raise SystemExit("Cannot locate URL parsing import")
+    s = s.replace(
+        marker,
+        marker + "\nfrom symbols import start_symbol_refresh, suggest_symbols, symbol_catalog_status",
+        1,
+    )
+
+if "    def send_json(self, data, status=200):" not in s:
+    marker = "    def allowed_host(self):"
+    json_method = '''    def send_json(self, data, status=200):
+        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+'''
+    if marker not in s:
+        raise SystemExit("Cannot locate Handler.allowed_host")
+    s = s.replace(marker, json_method + marker, 1)
+
 host_start = s.find("    def allowed_host(self):")
 host_end = s.find("\n    def do_GET(self):", host_start)
 if host_start < 0 or host_end < 0:
-    raise SystemExit("Could not locate allowed_host; original file left in place")
+    raise SystemExit("Could not locate allowed_host")
 host_replacement = '''    def allowed_host(self):
         try:
             from urllib.parse import urlsplit
@@ -44,26 +78,35 @@ host_replacement = '''    def allowed_host(self):
             return False
 '''
 s = s[:host_start] + host_replacement + s[host_end:]
-# Replace any previous loopback or TLS startup block with plain HTTP.
-startup_start = s.find('print("Login portal listening')
-if startup_start < 0:
-    raise SystemExit("Could not locate panel server startup; installer stopped")
-s = s[:startup_start] + '''print("Login portal listening on 0.0.0.0:8109")
-HTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
-'''
-s = s.replace("import ssl", "")
 
 start = s.find("    def do_GET(self):")
 end = s.find("\n    def do_POST(self):", start)
 if start < 0 or end < 0:
-    raise SystemExit("Could not locate Handler.do_GET; original file left in place")
+    raise SystemExit("Could not locate Handler.do_GET")
 
 replacement = '''    def do_GET(self):
         if not self.allowed_host():
             self.send_error(403)
             return
 
-        if self.path == "/":
+        parsed = urlsplit(self.path)
+
+        if parsed.path == "/api/symbols/suggest":
+            query = parse_qs(parsed.query).get("q", [""])[0]
+            if not query.strip():
+                self.send_json({"error": "برای جست‌وجوی نماد حداقل یک حرف وارد کن."}, 400)
+                return
+            try:
+                self.send_json(suggest_symbols(query))
+            except Exception:
+                self.send_json({"error": "جست‌وجوی نماد در حال حاضر در دسترس نیست."}, 502)
+            return
+
+        if parsed.path == "/api/symbols/status":
+            self.send_json(symbol_catalog_status())
+            return
+
+        if parsed.path == "/":
             try:
                 dashboard = Path(__file__).resolve().with_name("dashboard.html")
                 self.send_html(dashboard.read_text(encoding="utf-8"))
@@ -71,17 +114,24 @@ replacement = '''    def do_GET(self):
                 self.send_error(500, "DashboardUnavailable")
             return
 
-        if self.path == "/login":
+        if parsed.path == "/login":
             self.send_html(page())
             return
 
         self.send_error(404)
 '''
 s = s[:start] + replacement + s[end:]
+
+startup_start = s.find('print("Login portal listening')
+if startup_start < 0:
+    raise SystemExit("Could not locate panel server startup")
+s = s[:startup_start] + '''start_symbol_refresh()
+print("Login portal listening on 0.0.0.0:8109")
+HTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
+'''
 p.write_text(s, encoding="utf-8")
 PY
-
-"$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/login_portal.py"
+"$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/login_portal.py" "$APP_DIR/symbols.py"
 
 # Stop only the Python process currently listening on the panel port.
 python3 - <<'PY'
