@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>پنل معاملات دانا</title>
+<style>
+:root{--bg:#f3f6fb;--card:#fff;--ink:#182230;--muted:#667085;--line:#e4e9f0;--blue:#175cd3;--bluebg:#eff6ff;--green:#067647;--red:#b42318;--amber:#b54708}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:13px Tahoma,Arial}button,input,select{font:inherit}a{color:inherit;text-decoration:none}
+.shell{max-width:1550px;margin:auto;padding:18px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin-bottom:15px}
+.brand{display:flex;align-items:center;gap:11px}.logo{width:40px;height:40px;border-radius:12px;background:#e8f0ff;color:var(--blue);display:grid;place-items:center;font-size:21px;font-weight:bold}.brand h1{font-size:17px;margin:0}.brand small{display:block;color:var(--muted);margin-top:5px}
+.top-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.pill{border:1px solid var(--line);border-radius:20px;padding:8px 11px;color:var(--muted);background:#fff}.pill.off{background:#fff8eb;color:var(--amber);border-color:#fedf89}
+.primary{display:inline-block;background:var(--blue);color:#fff;border:0;border-radius:9px;padding:10px 14px;cursor:pointer}.layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:15px}
+.sidebar{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px;height:max-content}.navbtn{width:100%;text-align:right;display:flex;align-items:center;gap:10px;padding:12px;border:0;border-radius:9px;background:transparent;color:#475467;cursor:pointer;margin:2px 0}.navbtn.active{background:var(--bluebg);color:var(--blue);font-weight:bold}.navicon{width:22px;text-align:center;font-size:16px}
+.side-note{border-top:1px solid var(--line);margin-top:12px;padding:13px 7px 4px;color:var(--muted);font-size:11px;line-height:1.9}main{min-width:0}.view{display:none}.view.active{display:block}
+.pagehead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:2px 0 14px}.pagehead h2{font-size:17px;margin:0}.sub{color:var(--muted);margin-top:6px;font-size:11px}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:15px;min-width:0}.metric-label{color:var(--muted);font-size:11px}.metric-value{font-size:19px;font-weight:bold;margin-top:12px}.metric-foot{font-size:10px;color:var(--muted);margin-top:7px}
+.split{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr);gap:13px}.card h3{font-size:13px;margin:0 0 13px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field{min-width:0}.field.wide{grid-column:1/-1}
+label{display:block;font-weight:bold;font-size:11px;margin-bottom:6px}input,select{width:100%;height:38px;padding:8px 10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:var(--ink);outline:none}
+input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.sidechoice{display:flex;gap:8px}.sidechoice button{flex:1;padding:10px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer}.sidechoice button.selected.buy{background:#ecfdf3;color:var(--green);border-color:#abefc6}.sidechoice button.selected.sell{background:#fef3f2;color:var(--red);border-color:#fecdca}
+.estimate{background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:12px;display:flex;justify-content:space-between;gap:10px;margin-top:12px}.estimate strong{font-size:15px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.secondary{padding:10px 13px;border:1px solid var(--line);background:#fff;border-radius:9px;cursor:pointer}.disabled{opacity:.48;cursor:not-allowed}
+.notice{border:1px solid #fedf89;background:#fffaeb;color:#93370d;padding:11px 13px;border-radius:9px;line-height:1.9;font-size:11px;margin:12px 0}.info{border:1px solid #b2ddff;background:#f5faff;color:#1849a9;padding:12px;border-radius:9px;line-height:1.9;font-size:11px}
+.statusline{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;margin:10px 0}.dot{width:8px;height:8px;border-radius:50%;background:#f79009;display:inline-block}
+.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;white-space:nowrap}th,td{text-align:right;padding:11px 9px;border-bottom:1px solid #eaecf0;font-size:11px}th{color:var(--muted);font-weight:normal;background:#fafbfc}.empty{text-align:center!important;color:var(--muted);padding:32px!important;white-space:normal}
+.toast{display:none;margin:12px 0;padding:11px;border-radius:9px;background:#ecfdf3;color:var(--green)}.toast.show{display:block}.loginbox{max-width:650px}.loginbox p{line-height:2;color:var(--muted)}.footer{color:var(--muted);font-size:10px;text-align:center;margin:18px 0}
+@media(max-width:1000px){.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}.split{grid-template-columns:1fr}}
+@media(max-width:700px){.shell{padding:9px}.layout{grid-template-columns:1fr}.sidebar{display:flex;overflow:auto;gap:3px;padding:6px}.navbtn{width:auto;white-space:nowrap;padding:10px}.side-note{display:none}.topbar{align-items:flex-start;flex-direction:column}}
+@media(max-width:430px){.grid4{grid-template-columns:1fr 1fr}.formgrid{grid-template-columns:1fr}.field.wide{grid-column:auto}.metric-value{font-size:16px}}
+</style></head>
+<body><div class="shell">
+<header class="topbar"><div class="brand"><div class="logo">د</div><div><h1>پنل معاملات دانا</h1><small>مدیریت سفارش‌ها و پایش بازار</small></div></div>
+<div class="top-actions"><span class="pill">ساعت سرور: ـــ</span><span class="pill off"><span class="dot"></span> اتصال کارگزاری: بررسی نشده</span><a class="primary" href="/login">ورود به دانا</a></div></header>
+<div class="layout">
+<aside class="sidebar">
+<button class="navbtn active" data-view="dashboard"><span class="navicon">▦</span> داشبورد</button>
+<button class="navbtn" data-view="ticket"><span class="navicon">＋</span> ثبت سفارش</button>
+<button class="navbtn" data-view="open"><span class="navicon">⇄</span> سفارش‌های باز</button>
+<button class="navbtn" data-view="history"><span class="navicon">◷</span> تاریخچه</button>
+<button class="navbtn" data-view="settings"><span class="navicon">⚙</span> تنظیمات اتصال</button>
+<div class="side-note">سامانه مدیریت سفارش دانا<br>نسخه آزمایشی پنل<br>منطقه زمانی: تهران</div></aside>
+<main>
+<section class="view active" id="view-dashboard">
+<div class="pagehead"><div><h2>داشبورد</h2><div class="sub">نمای کلی وضعیت حساب و فعالیت سفارش‌ها</div></div></div>
+<div class="grid4">
+<div class="card"><div class="metric-label">وضعیت بازار</div><div class="metric-value">ـــ</div><div class="metric-foot">داده زنده هنوز متصل نیست</div></div>
+<div class="card"><div class="metric-label">قدرت خرید</div><div class="metric-value">ـــ</div><div class="metric-foot">پس از اتصال حساب نمایش داده می‌شود</div></div>
+<div class="card"><div class="metric-label">سفارش‌های باز</div><div class="metric-value">ـــ</div><div class="metric-foot">در انتظار اتصال API</div></div>
+<div class="card"><div class="metric-label">معاملات امروز</div><div class="metric-value">ـــ</div><div class="metric-foot">در انتظار اتصال API</div></div></div>
+<div class="split"><section class="card"><h3>ثبت سریع سفارش</h3><div class="formgrid">
+<div class="field wide"><label>نماد</label><input id="quick-symbol" placeholder="نماد را وارد کن"></div>
+<div class="field"><label>نوع سفارش</label><select id="quick-side"><option value="buy">خرید</option><option value="sell">فروش</option></select></div>
+<div class="field"><label>قیمت (ریال)</label><input id="quick-price" type="number" min="1" placeholder="قیمت"></div>
+<div class="field"><label>تعداد</label><input id="quick-qty" type="number" min="1" placeholder="تعداد"></div></div>
+<div class="estimate"><span>ارزش تقریبی سفارش</span><strong id="quick-total">ـــ</strong></div><div class="actions"><button class="primary" type="button" id="go-ticket">تکمیل سفارش</button></div></section>
+<section class="card"><h3>وضعیت سامانه</h3><div class="statusline"><span class="dot"></span> نشست کارگزاری هنوز تأیید نشده</div><div class="info">برای مشاهده موجودی، سفارش‌های باز و اطلاعات بازار، ابتدا ورود دانا و سپس اتصال APIهای فقط‌خواندنی تکمیل می‌شود.</div><div class="actions"><a class="secondary" href="/login">رفتن به صفحه ورود</a></div></section></div>
+<section class="card" style="margin-top:13px"><h3>فعالیت‌های اخیر</h3><div class="tablewrap"><table><thead><tr><th>زمان</th><th>شرح</th><th>وضعیت</th></tr></thead><tbody><tr><td colspan="3" class="empty">هنوز فعالیتی از کارگزاری دریافت نشده است.</td></tr></tbody></table></div></section>
+</section>
+<section class="view" id="view-ticket"><div class="pagehead"><div><h2>ثبت سفارش</h2><div class="sub">فرم آماده‌سازی سفارش خرید یا فروش</div></div></div>
+<div class="notice">این نسخه فقط پیش‌نویس سفارش را در همین نشست مرورگر نگه می‌دارد. ارسال واقعی سفارش تا تأیید قرارداد API دانا غیرفعال است.</div>
+<div class="split"><section class="card"><h3>مشخصات سفارش</h3><form id="order-form"><div class="formgrid">
+<div class="field wide"><label>نماد</label><input id="symbol" required maxlength="24" placeholder="نماد موردنظر"></div>
+<div class="field wide"><label>نوع سفارش</label><div class="sidechoice"><button type="button" class="selected buy" data-side="buy">خرید</button><button type="button" data-side="sell">فروش</button></div></div>
+<div class="field"><label>قیمت (ریال)</label><input id="price" type="number" min="1" step="1" required></div>
+<div class="field"><label>تعداد</label><input id="quantity" type="number" min="1" step="1" required></div>
+<div class="field"><label>اعتبار سفارش</label><select id="validity"><option value="day">روز</option><option value="gtc">معتبر تا تاریخ</option><option value="ioc">انجام و حذف باقیمانده</option></select></div>
+<div class="field"><label>تاریخ اعتبار</label><input id="validity-date" type="date" disabled></div></div>
+<div class="estimate"><span>ارزش ناخالص سفارش</span><strong id="order-total">۰ ریال</strong></div>
+<div class="actions"><button class="primary" type="submit">ذخیره پیش‌نویس</button><button class="secondary disabled" type="button" disabled>ارسال به کارگزاری</button></div></form><div id="draft-toast" class="toast">پیش‌نویس در همین مرورگر ذخیره شد.</div></section>
+<section class="card"><h3>خلاصه و کنترل سفارش</h3><div class="statusline"><span class="dot"></span> مسیر API: غیرفعال</div><div class="info">پس از تکمیل اتصال دانا، کنترل موجودی، محدودیت قیمت و اعتبار سفارش به این بخش اضافه می‌شود. تا آن زمان هیچ سفارشی به کارگزاری ارسال نخواهد شد.</div><div style="margin-top:14px;color:var(--muted);font-size:11px;line-height:2">قیمت به ریال وارد می‌شود.<br>تعداد به واحد سهم وارد می‌شود.<br>ارزش نمایش‌داده‌شده بدون کارمزد است.</div></section></div></section>
+<section class="view" id="view-open"><div class="pagehead"><div><h2>سفارش‌های باز</h2><div class="sub">سفارش‌های ثبت‌شده و در انتظار انجام</div></div><span class="pill off">اتصال خواندنی هنوز فعال نیست</span></div><section class="card"><div class="tablewrap"><table><thead><tr><th>نماد</th><th>سمت</th><th>قیمت</th><th>تعداد</th><th>انجام‌شده</th><th>باقی‌مانده</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody><tr><td colspan="8" class="empty">برای نمایش سفارش‌های باز باید نشست و API خواندنی دانا متصل شود.</td></tr></tbody></table></div></section></section>
+<section class="view" id="view-history"><div class="pagehead"><div><h2>تاریخچه سفارش‌ها</h2><div class="sub">سوابق سفارش و معاملات انجام‌شده</div></div></div><section class="card"><div class="tablewrap"><table><thead><tr><th>تاریخ</th><th>نماد</th><th>نوع</th><th>قیمت</th><th>تعداد</th><th>انجام‌شده</th><th>وضعیت</th></tr></thead><tbody><tr><td colspan="7" class="empty">تاریخچه پس از اتصال سرویس سفارش‌ها نمایش داده می‌شود.</td></tr></tbody></table></div></section></section>
+<section class="view" id="view-settings"><div class="pagehead"><div><h2>تنظیمات اتصال</h2><div class="sub">ورود به حساب کارگزاری دانا و وضعیت ارتباط</div></div></div>
+<section class="card loginbox"><h3>اتصال به دانا</h3><p>ورود با نام کاربری، رمز عبور و کپچای دستی انجام می‌شود. پس از احراز هویت، ساختار نشست و APIهای فقط‌خواندنی تکمیل خواهد شد.</p><div class="statusline"><span class="dot"></span> وضعیت نشست: هنوز تأیید نشده</div><a class="primary" href="/login">باز کردن صفحه ورود دانا</a></section>
+<section class="card" style="margin-top:13px"><h3>وضعیت اجزای پنل</h3><div class="tablewrap"><table><tbody>
+<tr><td>نمای داشبورد و فرم سفارش</td><td>آماده</td></tr><tr><td>ورود دستی با کپچا</td><td>آماده آزمون</td></tr><tr><td>دریافت سفارش‌های باز</td><td>در انتظار تکمیل نشست</td></tr><tr><td>تاریخچه و معاملات</td><td>در انتظار اتصال خواندنی</td></tr><tr><td>ارسال، ویرایش و لغو واقعی</td><td>غیرفعال تا تأیید قرارداد API</td></tr></tbody></table></div></section></section>
+</main></div><div class="footer">پنل دانا · رابط آزمایشی · پورت 8109</div></div>
+<script>
+const nav=[...document.querySelectorAll(".navbtn")],views=[...document.querySelectorAll(".view")];
+function showView(name){nav.forEach(b=>b.classList.toggle("active",b.dataset.view===name));views.forEach(v=>v.classList.toggle("active",v.id==="view-"+name));}
+nav.forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));
+const fmt=n=>new Intl.NumberFormat("fa-IR").format(n);
+function total(p,q,target){const a=Number(document.getElementById(p).value||0),b=Number(document.getElementById(q).value||0);document.getElementById(target).textContent=a>0&&b>0?fmt(a*b)+" ریال":"ـــ";}
+["quick-price","quick-qty"].forEach(id=>document.getElementById(id).addEventListener("input",()=>total("quick-price","quick-qty","quick-total")));
+["price","quantity"].forEach(id=>document.getElementById(id).addEventListener("input",()=>total("price","quantity","order-total")));
+document.getElementById("go-ticket").addEventListener("click",()=>{document.getElementById("symbol").value=document.getElementById("quick-symbol").value;document.getElementById("price").value=document.getElementById("quick-price").value;document.getElementById("quantity").value=document.getElementById("quick-qty").value;document.querySelector('[data-side="'+document.getElementById("quick-side").value+'"]').click();showView("ticket");total("price","quantity","order-total");});
+let side="buy";document.querySelectorAll("[data-side]").forEach(b=>b.addEventListener("click",()=>{side=b.dataset.side;document.querySelectorAll("[data-side]").forEach(x=>x.classList.remove("selected","buy","sell"));b.classList.add("selected",side);}));
+document.getElementById("validity").addEventListener("change",e=>document.getElementById("validity-date").disabled=e.target.value!=="gtc");
+document.getElementById("order-form").addEventListener("submit",e=>{e.preventDefault();const d={symbol:document.getElementById("symbol").value.trim(),side,price:Number(document.getElementById("price").value),quantity:Number(document.getElementById("quantity").value),validity:document.getElementById("validity").value,validityDate:document.getElementById("validity-date").value,createdAt:new Date().toISOString()};if(!d.symbol||d.price<1||d.quantity<1)return;try{const a=JSON.parse(sessionStorage.getItem("dana_drafts")||"[]");a.push(d);sessionStorage.setItem("dana_drafts",JSON.stringify(a));}catch(_){}const t=document.getElementById("draft-toast");t.classList.add("show");setTimeout(()=>t.classList.remove("show"),3500);});
+</script></body></html>
