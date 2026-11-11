@@ -18,11 +18,15 @@ curl -fsSL "$RAW/symbols.py" -o "$APP_DIR/symbols.py.tmp"
 mv "$APP_DIR/symbols.py.tmp" "$APP_DIR/symbols.py"
 curl -fsSL "$RAW/orders_api.py" -o "$APP_DIR/orders_api.py.tmp"
 mv "$APP_DIR/orders_api.py.tmp" "$APP_DIR/orders_api.py"
+curl -fsSL "$RAW/orders_store.py" -o "$APP_DIR/orders_store.py.tmp"
+mv "$APP_DIR/orders_store.py.tmp" "$APP_DIR/orders_store.py"
 mkdir -p "$APP_DIR/tests"
 curl -fsSL "$RAW/tests/test_symbols.py" -o "$APP_DIR/tests/test_symbols.py.tmp"
 mv "$APP_DIR/tests/test_symbols.py.tmp" "$APP_DIR/tests/test_symbols.py"
 curl -fsSL "$RAW/tests/test_orders_api.py" -o "$APP_DIR/tests/test_orders_api.py.tmp"
 mv "$APP_DIR/tests/test_orders_api.py.tmp" "$APP_DIR/tests/test_orders_api.py"
+curl -fsSL "$RAW/tests/test_orders_store.py" -o "$APP_DIR/tests/test_orders_store.py.tmp"
+mv "$APP_DIR/tests/test_orders_store.py.tmp" "$APP_DIR/tests/test_orders_store.py"
 
 python3 - <<'PY'
 from pathlib import Path
@@ -77,6 +81,16 @@ else:
     )
     if "broker_login_ok = " + "False" not in s:
         s = s.replace("session_auth = {}", "session_auth = {}\nbroker_login_ok = False", 1)
+
+if "from orders_store import ScheduledOrderStore" not in s:
+    marker = "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded"
+    if marker not in s:
+        raise SystemExit("Cannot locate orders API import for local scheduler")
+    s = s.replace(
+        marker,
+        marker + "\nfrom orders_store import ScheduledOrderStore, TEHRAN, start_order_scheduler, calendar_data, build_order_plan\norder_store = ScheduledOrderStore(Path(__file__).resolve().parent / \"data\" / \"scheduled_orders.json\")",
+        1,
+    )
 
 json_parse_prefix = "            try:\n                result = json.loads(raw) if raw else None"
 json_parse_start = s.find(json_parse_prefix)
@@ -174,8 +188,43 @@ replacement = '''    def do_GET(self):
                 "login_success": bool(broker_login_ok),
                 "cookie_session": bool(list(cookies)),
                 "auth_fields": sorted(session_auth.keys()),
-                "server_time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
+                "server_time": datetime.now(TEHRAN).strftime("%Y-%m-%d %H:%M:%S %Z"),
             })
+            return
+
+        if parsed.path == "/api/server-time":
+            now = datetime.now(TEHRAN)
+            self.send_json({"unix_millis": int(now.timestamp() * 1000), "timezone": "Asia/Tehran"})
+            return
+
+        if parsed.path == "/api/calendar":
+            try:
+                query = parse_qs(parsed.query)
+                year = int(query.get("year", [""])[0])
+                month = int(query.get("month", [""])[0])
+                self.send_json(calendar_data(year, month))
+            except (ValueError, TypeError) as exc:
+                self.send_json({"error": str(exc) or "سال و ماه شمسی نامعتبر است"}, 400)
+            return
+
+        if parsed.path == "/api/order-plan":
+            try:
+                query = parse_qs(parsed.query)
+                target_ms = int(query.get("target_ms", [""])[0])
+                lead_ms = int(query.get("lead_ms", [""])[0])
+                interval_ms = int(query.get("interval_ms", [""])[0])
+                self.send_json(build_order_plan(target_ms, lead_ms, interval_ms))
+            except (ValueError, TypeError) as exc:
+                self.send_json({"error": str(exc) or "پارامترهای برنامه‌ریز نامعتبر است"}, 400)
+            return
+
+        if parsed.path == "/api/orders/local":
+            view = parse_qs(parsed.query).get("view", ["active"])[0]
+            if view not in ("active", "history"):
+                self.send_json({"error": "نمای سفارش‌ها نامعتبر است"}, 400)
+                return
+            rows = order_store.list_orders(view)
+            self.send_json({"ok": True, "view": view, "count": len(rows), "orders": rows})
             return
 
         if parsed.path == "/api/orders/open":
@@ -232,16 +281,74 @@ if "login_status = \"ناموفق\"" in s and "ورود دومرحله‌ای:" 
         raise SystemExit("Cannot locate login diagnostic response")
     s = s.replace(marker, details_prefix + marker, 1)
 
+post_marker = """    def do_POST(self):
+        if not self.allowed_host():
+            self.send_error(403)
+            return
+"""
+if 'api_path.startswith("/api/orders/")' not in s:
+    post_addition = '''        api_path = urlsplit(self.path).path
+        if api_path.startswith("/api/orders/"):
+            origin = self.headers.get("Origin", "")
+            if origin:
+                try:
+                    if urlsplit(origin).netloc.lower() != self.headers.get("Host", "").lower():
+                        self.send_json({"ok": False, "error": "درخواست از مبدأ نامعتبر پذیرفته نشد."}, 403)
+                        return
+                except ValueError:
+                    self.send_json({"ok": False, "error": "مبدأ درخواست نامعتبر است."}, 403)
+                    return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+            if length <= 0 or length > 262144:
+                self.send_json({"ok": False, "error": "حجم درخواست سفارش معتبر نیست."}, 400)
+                return
+            try:
+                body = self.rfile.read(length).decode("utf-8")
+                parsed_fields = parse_qs(body, keep_blank_values=True)
+                form = {key: values[0] for key, values in parsed_fields.items()}
+                if api_path == "/api/orders/schedule":
+                    result = order_store.create_order(form)
+                    self.send_json({"ok": True, "order": result}, 201)
+                elif api_path == "/api/orders/batch":
+                    result = order_store.create_batch(form)
+                    self.send_json({"ok": True, **result}, 201)
+                elif api_path == "/api/orders/cancel":
+                    order_store.cancel(form.get("id", ""))
+                    self.send_json({"ok": True})
+                elif api_path == "/api/orders/manual-confirm":
+                    order_store.confirm_manual(form.get("id", ""))
+                    self.send_json({"ok": True})
+                elif api_path == "/api/orders/cancel-all":
+                    self.send_json({"ok": True, "count": order_store.cancel_all_scheduled()})
+                elif api_path == "/api/orders/history/clear":
+                    self.send_json({"ok": True, "count": order_store.clear_history()})
+                else:
+                    self.send_json({"ok": False, "error": "مسیر سفارش محلی پیدا نشد."}, 404)
+            except ValueError as exc:
+                self.send_json({"ok": False, "error": str(exc)}, 400)
+            except Exception:
+                self.send_json({"ok": False, "error": "ذخیره یا مدیریت سفارش انجام نشد."}, 500)
+            return
+
+'''
+    if post_marker not in s:
+        raise SystemExit("Cannot locate Handler.do_POST host guard")
+    s = s.replace(post_marker, post_marker + post_addition, 1)
+
 startup_start = s.find('print("Login portal listening')
 if startup_start < 0:
     raise SystemExit("Could not locate panel server startup")
 s = s[:startup_start] + '''start_symbol_refresh()
+start_order_scheduler(order_store)
 print("Login portal listening on 0.0.0.0:8109")
 HTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
 '''
 p.write_text(s, encoding="utf-8")
 PY
-"$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/login_portal.py" "$APP_DIR/symbols.py" "$APP_DIR/orders_api.py"
+"$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/login_portal.py" "$APP_DIR/symbols.py" "$APP_DIR/orders_api.py" "$APP_DIR/orders_store.py"
 "$APP_DIR/.venv/bin/python" -m unittest discover -s "$APP_DIR/tests" -v
 
 # Stop only the Python process currently listening on the panel port.
