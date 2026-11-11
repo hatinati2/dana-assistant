@@ -113,13 +113,13 @@ if capture_marker not in s:
         raise SystemExit("Cannot locate login response parser")
     s = s.replace(login_parse_marker, login_parse_replacement, 1)
 
-broker_state_marker = "broker_" + "login_ok"
-if broker_state_marker not in s:
-    s = s.replace("global session_auth" + "\\n", "global session_auth, broker_login_ok" + "\\n", 1)
-    login_flag_line = "login_ok = login_succeeded(result)" + "\\n"
+broker_global_marker = "global session_auth, " + "broker_login_ok"
+if broker_global_marker not in s:
+    s = s.replace("global session_auth" + "\n", "global session_auth, broker_login_ok" + "\n", 1)
+    login_flag_line = "login_ok = login_succeeded(result)" + "\n"
     if login_flag_line not in s:
         raise SystemExit("Cannot locate login success flag")
-    s = s.replace(login_flag_line, login_flag_line + "            broker_login_ok = login_ok" + "\\n", 1)
+    s = s.replace(login_flag_line, login_flag_line + "            broker_login_ok = login_ok" + "\n", 1)
 
 if "ورود دومرحله‌ای:" not in s:
     details_marker = "            self.send_html(page(details))"
