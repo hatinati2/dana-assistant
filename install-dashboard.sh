@@ -139,7 +139,7 @@ fi
 
 PUBLIC_IP="$(curl -4fsS --max-time 8 https://api.ipify.org || true)"
 if [ -n "$PUBLIC_IP" ]; then
-  echo "DIRECT PANEL URL: http://$PUBLIC_IP:8109"
+  echo "DIRECT PANEL URL: https://$PUBLIC_IP:8109"
 else
   echo "Could not detect public IPv4. Use your VPS public IP with port 8109."
 fi
