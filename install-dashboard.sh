@@ -9,6 +9,9 @@ test -x "$APP_DIR/.venv/bin/python" || { echo "Python virtualenv not found: $APP
 test -f "$APP_DIR/login_portal.py" || { echo "login_portal.py not found"; exit 1; }
 mkdir -p "$APP_DIR/logs"
 
+# Remove only the panel-specific self-signed certificate created by the previous installer.
+rm -f /etc/ssl/certs/dana-panel.crt /etc/ssl/private/dana-panel.key
+
 curl -fsSL "$RAW/dashboard.html" -o "$APP_DIR/dashboard.html.tmp"
 mv "$APP_DIR/dashboard.html.tmp" "$APP_DIR/dashboard.html"
 
