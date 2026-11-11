@@ -18,6 +18,7 @@ from orders_store import (
 class JalaliCalendarTests(unittest.TestCase):
     def test_jalali_gregorian_round_trip(self):
         gregorian = jalali_to_gregorian(1405, 8, 20)
+        self.assertEqual(gregorian, (2026, 11, 11))
         self.assertEqual(gregorian_to_jalali(*gregorian), (1405, 8, 20))
 
     def test_persian_digits_and_milliseconds_are_supported(self):
