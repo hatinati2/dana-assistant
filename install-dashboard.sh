@@ -75,16 +75,14 @@ else:
     if "broker_login_ok = " + "False" not in s:
         s = s.replace("session_auth = {}", "session_auth = {}\nbroker_login_ok = False", 1)
 
-login_parse_marker = """            try:
-                result = json.loads(raw) if raw else None
-            except Exception:
-                result = None
+json_parse_prefix = "            try:\n                result = json.loads(raw) if raw else None"
+json_parse_start = s.find(json_parse_prefix)
+keys_line = "            keys = sorted(result.keys()) if isinstance(result, dict) else []"
+json_parse_end = s.find(keys_line, json_parse_start)
+if json_parse_start < 0 or json_parse_end < 0:
+    raise SystemExit("Cannot locate login response parser")
 
-            keys = sorted(result.keys()) if isinstance(result, dict) else []
-"""
-capture_marker = "session_auth = capture_session_auth(" + "result)"
-if capture_marker not in s:
-    login_parse_replacement = """            try:
+login_parse_replacement = """            try:
                 result = json.loads(raw) if raw else None
             except Exception:
                 result = None
@@ -107,19 +105,8 @@ if capture_marker not in s:
             login_step = result.get("step") if isinstance(result, dict) else None
             two_factor = result.get("twoFactorAuthentication") if isinstance(result, dict) else None
 
-            keys = sorted(result.keys()) if isinstance(result, dict) else []
-"""
-    if login_parse_marker not in s:
-        raise SystemExit("Cannot locate login response parser")
-    s = s.replace(login_parse_marker, login_parse_replacement, 1)
-
-broker_global_marker = "global session_auth, " + "broker_login_ok"
-if broker_global_marker not in s:
-    s = s.replace("global session_auth" + "\n", "global session_auth, broker_login_ok" + "\n", 1)
-    login_flag_line = "login_ok = login_succeeded(result)" + "\n"
-    if login_flag_line not in s:
-        raise SystemExit("Cannot locate login success flag")
-    s = s.replace(login_flag_line, login_flag_line + "            broker_login_ok = login_ok" + "\n", 1)
+            keys = sorted(result.keys()) if isinstance(result, dict) else []"""
+s = s[:json_parse_start] + login_parse_replacement + s[json_parse_end + len(keys_line):]
 
 if "ورود دومرحله‌ای:" not in s:
     details_marker = "            self.send_html(page(details))"
