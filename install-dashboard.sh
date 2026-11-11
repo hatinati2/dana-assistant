@@ -48,7 +48,7 @@ if startup_start < 0:
 s = s[:startup_start] + '''print("Login portal listening on 0.0.0.0:8109")
 HTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
 '''
-s = s.replace("import ssl\\n", "")
+s = s.replace("import ssl", "")
 
 start = s.find("    def do_GET(self):")
 end = s.find("\n    def do_POST(self):", start)
