@@ -63,17 +63,17 @@ if orders_import_marker not in s:
         raise SystemExit("Cannot locate symbols import for orders API")
     s = s.replace(
         symbols_import,
-        symbols_import + "\\nfrom orders_api import capture_session_auth, fetch_open_orders, login_succeeded\\nsession_auth = {}\\nbroker_login_ok = False",
+        symbols_import + "\nfrom orders_api import capture_session_auth, fetch_open_orders, login_succeeded\nsession_auth = {}\nbroker_login_ok = False",
         1,
     )
 else:
     s = s.replace(
-        "from orders_api import capture_session_auth, fetch_open_orders\\n",
-        "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded\\n",
+        "from orders_api import capture_session_auth, fetch_open_orders\n",
+        "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded\n",
         1,
     )
     if "broker_login_ok = " + "False" not in s:
-        s = s.replace("session_auth = {}", "session_auth = {}\\nbroker_login_ok = False", 1)
+        s = s.replace("session_auth = {}", "session_auth = {}\nbroker_login_ok = False", 1)
 
 login_parse_marker = """            try:
                 result = json.loads(raw) if raw else None
@@ -112,6 +112,14 @@ if capture_marker not in s:
     if login_parse_marker not in s:
         raise SystemExit("Cannot locate login response parser")
     s = s.replace(login_parse_marker, login_parse_replacement, 1)
+
+broker_state_marker = "broker_" + "login_ok"
+if broker_state_marker not in s:
+    s = s.replace("global session_auth" + "\\n", "global session_auth, broker_login_ok" + "\\n", 1)
+    login_flag_line = "login_ok = login_succeeded(result)" + "\\n"
+    if login_flag_line not in s:
+        raise SystemExit("Cannot locate login success flag")
+    s = s.replace(login_flag_line, login_flag_line + "            broker_login_ok = login_ok" + "\\n", 1)
 
 if "ورود دومرحله‌ای:" not in s:
     details_marker = "            self.send_html(page(details))"
