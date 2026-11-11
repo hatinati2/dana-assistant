@@ -47,12 +47,13 @@ def normalize_digits(value: str) -> str:
 
 
 def _div(a: int, b: int) -> int:
-    # All operands used in the supported conversion range are non-negative.
-    return a // b
+    # Match Go integer division: truncate toward zero.
+    return int(a / b)
 
 
 def _mod(a: int, b: int) -> int:
-    return a % b
+    # Match Go remainder: sign follows the dividend.
+    return a - _div(a, b) * b
 
 
 def _jal_cal(jy: int) -> tuple[int, int, int]:
@@ -66,17 +67,17 @@ def _jal_cal(jy: int) -> tuple[int, int, int]:
         jump = jm - jp
         if jy < jm:
             break
-        leap_j += (jump // 33) * 8 + ((jump % 33) // 4)
+        leap_j += _div(jump, 33) * 8 + _div(_mod(jump, 33), 4)
         jp = jm
     n = jy - jp
-    leap_j += (n // 33) * 8 + (((n % 33) + 3) // 4)
-    if jump % 33 == 4 and jump - n == 4:
+    leap_j += _div(n, 33) * 8 + _div(_mod(n, 33) + 3, 4)
+    if _mod(jump, 33) == 4 and jump - n == 4:
         leap_j += 1
-    leap_g = gy // 4 - (((gy // 100) + 1) * 3 // 4) - 150
+    leap_g = _div(gy, 4) - _div((_div(gy, 100) + 1) * 3, 4) - 150
     march = 20 + leap_j - leap_g
     if jump - n < 6:
-        n -= jump + ((jump + 4) // 33) * 33
-    leap = (((n + 1) % 33) - 1) % 4
+        n -= jump + _div(jump + 4, 33) * 33
+    leap = _mod(_mod(n + 1, 33) - 1, 4)
     if leap == -1:
         leap = 4
     return leap, gy, march
@@ -105,21 +106,21 @@ def is_valid_jalali_date(year: int, month: int, day: int) -> bool:
 
 
 def _g2d(gy: int, gm: int, gd: int) -> int:
-    d = ((gy + int((gm - 8) / 6) + 100100) * 1461) // 4
-    d += (153 * ((gm + 9) % 12) + 2) // 5
+    d = _div((gy + _div(gm - 8, 6) + 100100) * 1461, 4)
+    d += _div(153 * _mod(gm + 9, 12) + 2, 5)
     d += gd - 34840408
-    d -= ((((gy + 100100 + ((gm - 8) // 6)) // 100) * 3) // 4)
+    d -= _div(_div(gy + 100100 + _div(gm - 8, 6), 100) * 3, 4)
     d += 752
     return d
 
 
 def _d2g(jdn: int) -> tuple[int, int, int]:
     j = 4 * jdn + 139361631
-    j += (((4 * jdn + 183187720) // 146097) * 3 // 4) * 4 - 3908
-    i = ((j % 1461) // 4) * 5 + 308
-    gd = ((i % 153) // 5) + 1
-    gm = ((i // 153) % 12) + 1
-    gy = (j // 1461) - 100100 + int((8 - gm) / 6)
+    j += _div(_div(4 * jdn + 183187720, 146097) * 3, 4) * 4 - 3908
+    i = _div(_mod(j, 1461), 4) * 5 + 308
+    gd = _div(_mod(i, 153), 5) + 1
+    gm = _mod(_div(i, 153), 12) + 1
+    gy = _div(j, 1461) - 100100 + _div(8 - gm, 6)
     return gy, gm, gd
 
 
@@ -127,7 +128,7 @@ def jalali_to_gregorian(year: int, month: int, day: int) -> tuple[int, int, int]
     if not is_valid_jalali_date(year, month, day):
         raise ValueError("تاریخ شمسی معتبر نیست")
     _, gy, march = _jal_cal(year)
-    jdn = _g2d(gy, 3, march) + (month - 1) * 31 - (month // 7) * (month - 7) + day - 1
+    jdn = _g2d(gy, 3, march) + (month - 1) * 31 - _div(month, 7) * (month - 7) + day - 1
     return _d2g(jdn)
 
 
@@ -140,8 +141,8 @@ def gregorian_to_jalali(gy: int, gm: int, gd: int) -> tuple[int, int, int]:
     k = jdn - jdn1f
     if k >= 0:
         if k <= 185:
-            jm = 1 + k // 31
-            jd = (k % 31) + 1
+            jm = 1 + _div(k, 31)
+            jd = _mod(k, 31) + 1
             return jy, jm, jd
         k -= 186
     else:
@@ -149,8 +150,8 @@ def gregorian_to_jalali(gy: int, gm: int, gd: int) -> tuple[int, int, int]:
         k += 179
         if leap == 1:
             k += 1
-    jm = 7 + k // 30
-    jd = (k % 30) + 1
+    jm = 7 + _div(k, 30)
+    jd = _mod(k, 30) + 1
     return jy, jm, jd
 
 
