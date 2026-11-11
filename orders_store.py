@@ -345,7 +345,11 @@ class ScheduledOrderStore:
         record = self._new_record(common, execute_at, now)
         with self._lock:
             self._orders.append(record)
-            self._save_locked()
+            try:
+                self._save_locked()
+            except Exception:
+                self._orders.pop()
+                raise
         return self._public_record(record)
 
     def create_batch(self, fields: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
@@ -373,8 +377,13 @@ class ScheduledOrderStore:
             for index in range(plan["count"])
         ]
         with self._lock:
+            previous_length = len(self._orders)
             self._orders.extend(records)
-            self._save_locked()
+            try:
+                self._save_locked()
+            except Exception:
+                del self._orders[previous_length:]
+                raise
         return {
             "count": len(records),
             "first": format_jalali_datetime(records[0]["execute_at"]),
@@ -403,6 +412,7 @@ class ScheduledOrderStore:
         now = (now or datetime.now(TEHRAN)).astimezone(timezone.utc)
         changed = 0
         with self._lock:
+            previous = [dict(row) for row in self._orders]
             for row in self._orders:
                 if row.get("status") != "scheduled":
                     continue
@@ -415,19 +425,28 @@ class ScheduledOrderStore:
                     row["updated_at"] = now.isoformat()
                     changed += 1
             if changed:
-                self._save_locked()
+                try:
+                    self._save_locked()
+                except Exception:
+                    self._orders = previous
+                    raise
         return changed
 
     def cancel(self, order_id: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self._lock:
-            for row in self._orders:
+            for index, row in enumerate(self._orders):
                 if row.get("id") == order_id:
                     if row.get("status") not in ("scheduled", "ready"):
                         raise ValueError("فقط سفارش زمان‌بندی‌شده یا آماده بررسی قابل لغو است")
+                    previous = dict(row)
                     row["status"] = "cancelled"
                     row["updated_at"] = now
-                    self._save_locked()
+                    try:
+                        self._save_locked()
+                    except Exception:
+                        self._orders[index] = previous
+                        raise
                     return
         raise ValueError("سفارش پیدا نشد")
 
@@ -435,25 +454,35 @@ class ScheduledOrderStore:
         now = datetime.now(timezone.utc).isoformat()
         count = 0
         with self._lock:
+            previous = [dict(row) for row in self._orders]
             for row in self._orders:
                 if row.get("status") == "scheduled":
                     row["status"] = "cancelled"
                     row["updated_at"] = now
                     count += 1
             if count:
-                self._save_locked()
+                try:
+                    self._save_locked()
+                except Exception:
+                    self._orders = previous
+                    raise
         return count
 
     def confirm_manual(self, order_id: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self._lock:
-            for row in self._orders:
+            for index, row in enumerate(self._orders):
                 if row.get("id") == order_id:
                     if row.get("status") != "ready":
                         raise ValueError("فقط سفارش آماده بررسی را می‌توان تأیید کرد")
+                    previous = dict(row)
                     row["status"] = "manual_done"
                     row["updated_at"] = now
-                    self._save_locked()
+                    try:
+                        self._save_locked()
+                    except Exception:
+                        self._orders[index] = previous
+                        raise
                     return
         raise ValueError("سفارش پیدا نشد")
 
