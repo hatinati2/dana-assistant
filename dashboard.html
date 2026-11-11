@@ -111,8 +111,6 @@ async function loadBrokerStatus(){
   const response=await fetch("/api/broker/status",{cache:"no-store",headers:{"Accept":"application/json"}});
   const state=await response.json();
   if(!response.ok)throw new Error("HTTP "+response.status);
-  const clock=document.getElementById("server-clock");
-  if(clock)clock.textContent="ساعت سرور: "+(state.server_time||"نامشخص");
   const connected=state.connected===true;
   pill.textContent=connected?"اتصال کارگزاری: برقرار":"اتصال کارگزاری: نیاز به ورود";
   pill.className=connected?"pill on":"pill off";
@@ -128,7 +126,7 @@ async function loadBrokerStatus(){
 }
 
 const nav=[...document.querySelectorAll(".navbtn")],views=[...document.querySelectorAll(".view")];
-function showView(name){nav.forEach(b=>b.classList.toggle("active",b.dataset.view===name));views.forEach(v=>v.classList.toggle("active",v.id==="view-"+name));if(name==="open")loadOpenOrders();}
+function showView(name){nav.forEach(b=>b.classList.toggle("active",b.dataset.view===name));views.forEach(v=>v.classList.toggle("active",v.id==="view-"+name));if(name==="open")loadOpenOrders();if(name==="scheduled")loadLocalOrders("active");if(name==="history")loadLocalOrders("history");}
 nav.forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));
 loadBrokerStatus();
 setInterval(loadBrokerStatus,15000);
@@ -267,15 +265,238 @@ document.getElementById("go-ticket").addEventListener("click",()=>{
 });
 let side="buy";document.querySelectorAll("[data-side]").forEach(b=>b.addEventListener("click",()=>{side=b.dataset.side;document.querySelectorAll("[data-side]").forEach(x=>x.classList.remove("selected","buy","sell"));b.classList.add("selected",side);}));
 document.getElementById("validity").addEventListener("change",e=>document.getElementById("validity-date").disabled=e.target.value!=="gtc");
-document.getElementById("order-form").addEventListener("submit",e=>{
+document.getElementById("order-form").addEventListener("submit",async e=>{
  e.preventDefault();
  const instrument=orderPicker.getSelected();
- if(!instrument){document.getElementById("symbol-status").textContent="نماد را حتماً از فهرست پیشنهادها انتخاب کن تا ISIN دقیق ثبت شود.";document.getElementById("symbol").focus();return;}
- const d={symbol:instrument.symbol,isin:instrument.isin,company_name:instrument.company_name,market_type:instrument.market_type,side,price:Number(document.getElementById("price").value),quantity:Number(document.getElementById("quantity").value),validity:document.getElementById("validity").value,validityDate:document.getElementById("validity-date").value,createdAt:new Date().toISOString()};
- if(!d.symbol||!d.isin||d.price<1||d.quantity<1)return;
- try{const a=JSON.parse(sessionStorage.getItem("dana_drafts")||"[]");a.push(d);sessionStorage.setItem("dana_drafts",JSON.stringify(a));}catch(_){}
- const t=document.getElementById("draft-toast");t.textContent="پیش‌نویس "+d.symbol+" با ISIN "+d.isin+" در همین مرورگر ذخیره شد.";t.classList.add("show");setTimeout(()=>t.classList.remove("show"),4500);
+ const toast=document.getElementById("draft-toast");
+ if(!instrument){document.getElementById("symbol-status").textContent="نماد را از پیشنهادها انتخاب کن تا ISIN دقیق ثبت شود.";document.getElementById("symbol").focus();return;}
+ const payload={
+  symbol:instrument.symbol,isin:instrument.isin,side,
+  price:document.getElementById("price").value,
+  quantity:document.getElementById("quantity").value,
+  execute_at_date:document.getElementById("schedule-date").value,
+  execute_time:document.getElementById("schedule-time").value
+ };
+ toast.textContent="در حال ذخیره زمان‌بندی روی سرور…";toast.classList.add("show");
+ try{
+  const response=await fetch("/api/orders/schedule",{method:"POST",cache:"no-store",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},body:new URLSearchParams(payload)});
+  const result=await response.json();
+  if(!response.ok||!result.ok)throw new Error(result.error||"ذخیره سفارش انجام نشد.");
+  toast.textContent="سفارش "+instrument.symbol+" برای "+result.order.execute_at_jalali+" ذخیره شد.";
+  showView("scheduled");
+ }catch(error){toast.textContent="خطا: "+(error.message||"ذخیره سفارش ناموفق بود.");}
 });
+
+function localPost(path,values={}){
+ return fetch(path,{method:"POST",cache:"no-store",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},body:new URLSearchParams(values)}).then(async response=>{
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||"درخواست انجام نشد.");
+  return result;
+ });
+}
+function localStatusLabel(status){
+ return ({scheduled:"زمان‌بندی‌شده",ready:"آماده بررسی",manual_done:"تأیید دستی شد",cancelled:"لغوشده"})[status]||status||"—";
+}
+const localOrderCache=new Map();
+function appendTextCell(row,value){
+ const cell=document.createElement("td");cell.textContent=value===undefined||value===null||value===""?"—":String(value);row.append(cell);return cell;
+}
+function localActionButton(cell,label,action,id){
+ const button=document.createElement("button");button.type="button";button.className="secondary";button.textContent=label;button.dataset.localAction=action;button.dataset.orderId=id;cell.append(button);
+}
+function renderLocalOrders(rows,view){
+ const history=view==="history";
+ const body=document.getElementById(history?"local-history-body":"scheduled-orders-body");
+ body.replaceChildren();localOrderCache.clear();
+ if(!rows.length){
+  const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=7;td.className="empty";td.textContent=history?"تاریخچه‌ای ثبت نشده است.":"هنوز سفارش زمان‌بندی‌شده‌ای ثبت نشده است.";tr.append(td);body.append(tr);return;
+ }
+ for(const order of rows){
+  localOrderCache.set(order.id,order);
+  const tr=document.createElement("tr");
+  if(history)appendTextCell(tr,order.execute_at_jalali||"—");
+  else appendTextCell(tr,order.symbol);
+  if(history)appendTextCell(tr,order.symbol);
+  appendTextCell(tr,order.side==="buy"?"خرید":"فروش");
+  appendTextCell(tr,fmt(order.price));
+  appendTextCell(tr,fmt(order.quantity));
+  if(!history)appendTextCell(tr,order.execute_at_jalali||"—");
+  const statusCell=appendTextCell(tr,localStatusLabel(order.status));
+  statusCell.className=order.status==="ready"?"status-ready":order.status==="manual_done"?"status-done":order.status==="cancelled"?"status-cancelled":"status-scheduled";
+  const actions=tr.insertCell();actions.className="local-order-actions";
+  if(!history&&order.status==="scheduled")localActionButton(actions,"لغو","cancel",order.id);
+  if(!history&&order.status==="ready")localActionButton(actions,"ثبت دستی انجام شد","confirm",order.id);
+  localActionButton(actions,"کپی سفارش","copy",order.id);
+  body.append(tr);
+ }
+}
+async function loadLocalOrders(view="active"){
+ const history=view==="history";
+ const body=document.getElementById(history?"local-history-body":"scheduled-orders-body");
+ try{
+  const response=await fetch("/api/orders/local?view="+view,{cache:"no-store",headers:{"Accept":"application/json"}});
+  const result=await response.json();
+  if(!response.ok||!result.ok)throw new Error(result.error||"دریافت سفارش‌های محلی ناموفق بود.");
+  renderLocalOrders(result.orders||[],view);
+  if(!history)document.getElementById("scheduled-updated").textContent="آخرین به‌روزرسانی: "+new Date().toLocaleTimeString("fa-IR");
+ }catch(error){
+  body.replaceChildren();const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=7;td.className="empty";td.textContent=error.message||"خطا در دریافت سفارش‌ها";tr.append(td);body.append(tr);
+ }
+}
+function copyLocalOrder(order){
+ orderPicker.setSelected({symbol:order.symbol,isin:order.isin||"",company_name:"",market_type:""});
+ document.getElementById("price").value=order.price;
+ document.getElementById("quantity").value=order.quantity;
+ document.querySelectorAll("[data-side]").forEach(button=>button.classList.remove("selected","buy","sell"));
+ const sideButton=document.querySelector('[data-side="'+(order.side==="sell"?"sell":"buy")+'"]');
+ if(sideButton)sideButton.click();
+ showView("ticket");
+}
+document.addEventListener("click",async event=>{
+ const button=event.target.closest("button[data-local-action]");
+ if(!button)return;
+ const id=button.dataset.orderId,action=button.dataset.localAction,order=localOrderCache.get(id);
+ if(action==="copy"&&order){copyLocalOrder(order);return;}
+ try{
+  if(action==="cancel"){
+   if(!window.confirm("این سفارش زمان‌بندی‌شده لغو شود؟"))return;
+   await localPost("/api/orders/cancel",{id});
+  }else if(action==="confirm"){
+   if(!window.confirm("آیا این سفارش را شخصاً در سامانه دانا ثبت کرده‌ای؟ تأیید فقط در تاریخچه محلی ذخیره می‌شود."))return;
+   await localPost("/api/orders/manual-confirm",{id});
+  }
+  await loadLocalOrders(document.getElementById("view-history").classList.contains("active")?"history":"active");
+ }catch(error){window.alert(error.message||"عملیات ناموفق بود.");}
+});
+document.getElementById("refresh-scheduled").addEventListener("click",()=>loadLocalOrders("active"));
+document.getElementById("refresh-local-history").addEventListener("click",()=>loadLocalOrders("history"));
+document.getElementById("cancel-all-scheduled").addEventListener("click",async()=>{
+ if(!window.confirm("تمام سفارش‌های هنوز زمان‌بندی‌شده لغو شوند؟ سفارش‌های آماده بررسی دست‌نخورده می‌مانند."))return;
+ try{const result=await localPost("/api/orders/cancel-all");await loadLocalOrders("active");window.alert(fmt(result.count)+" سفارش لغو شد.");}
+ catch(error){window.alert(error.message||"لغو گروهی ناموفق بود.");}
+});
+document.getElementById("clear-local-history").addEventListener("click",async()=>{
+ if(!window.confirm("تمام تاریخچه محلی برای همیشه پاک شود؟ سفارش‌های فعال حفظ می‌شوند."))return;
+ try{const result=await localPost("/api/orders/history/clear");await loadLocalOrders("history");window.alert(fmt(result.count)+" مورد از تاریخچه پاک شد.");}
+ catch(error){window.alert(error.message||"پاک کردن تاریخچه ناموفق بود.");}
+});
+
+(function initJalaliCalendar(){
+ const input=document.getElementById("schedule-date"),calendar=document.getElementById("jalali-calendar");
+ const days=document.getElementById("cal-days"),title=document.getElementById("cal-title");
+ if(!input||!calendar||!days||!title)return;
+ const state={year:1405,month:1,today:""};
+ const pad=value=>String(value).padStart(2,"0");
+ function normalize(value){return String(value||"").replace(/[۰-۹٠-٩]/g,ch=>String("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩".indexOf(ch)%10)).trim();}
+ function parse(value){const match=normalize(value).match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/);return match?{year:Number(match[1]),month:Number(match[2]),day:Number(match[3])}:null;}
+ async function render(){
+  const response=await fetch("/api/calendar?year="+state.year+"&month="+state.month,{cache:"no-store"});
+  const data=await response.json();if(!response.ok)throw new Error(data.error||"تقویم در دسترس نیست");
+  title.textContent=data.month_name+" "+data.year;days.replaceChildren();
+  for(let i=0;i<data.first_weekday;i++){const blank=document.createElement("span");blank.className="cal-empty";days.append(blank);}
+  const selected=parse(input.value);
+  for(let day=1;day<=data.days;day++){
+   const button=document.createElement("button");button.type="button";button.className="cal-day";button.textContent=pad(day);
+   if(selected&&selected.year===state.year&&selected.month===state.month&&selected.day===day)button.classList.add("selected");
+   if(state.today&&state.today===state.year+"/"+pad(state.month)+"/"+pad(day))button.classList.add("today");
+   button.addEventListener("click",()=>{input.value=state.year+"/"+pad(state.month)+"/"+pad(day);calendar.hidden=true;});
+   days.append(button);
+  }
+ }
+ function syncToInput(){
+  const value=parse(input.value);
+  if(value&&value.year>=1&&value.month>=1&&value.month<=12){state.year=value.year;state.month=value.month;}
+ }
+ document.getElementById("calendar-toggle").addEventListener("click",()=>{
+  syncToInput();calendar.hidden=!calendar.hidden;
+  if(!calendar.hidden)render().catch(error=>{title.textContent=error.message;});
+ });
+ document.getElementById("cal-prev").addEventListener("click",()=>{
+  state.month--;if(state.month<1){state.month=12;state.year--;}
+  render().catch(error=>{title.textContent=error.message;});
+ });
+ document.getElementById("cal-next").addEventListener("click",()=>{
+  state.month++;if(state.month>12){state.month=1;state.year++;}
+  render().catch(error=>{title.textContent=error.message;});
+ });
+ input.addEventListener("input",syncToInput);
+ window.initJalaliCalendarToday=value=>{
+  const date=parse(value);if(!date)return;
+  state.year=date.year;state.month=date.month;state.today=date.year+"/"+pad(date.month)+"/"+pad(date.day);
+  if(!input.value)input.value=state.today;
+ };
+})();
+
+(function initServerClock(){
+ const clock=document.getElementById("server-clock");if(!clock)return;
+ let base=0,perfBase=0;
+ const formatter=new Intl.DateTimeFormat("fa-IR-u-nu-latn",{timeZone:"Asia/Tehran",hour:"2-digit",minute:"2-digit",second:"2-digit",fractionalSecondDigits:3,hourCycle:"h23"});
+ function tick(){if(!base)return;clock.textContent="ساعت تهران: "+formatter.format(new Date(base+(performance.now()-perfBase)));}
+ async function sync(){
+  try{
+   const response=await fetch("/api/server-time",{cache:"no-store"});const data=await response.json();
+   if(!response.ok||!Number.isFinite(data.unix_millis))throw new Error("server time unavailable");
+   base=data.unix_millis;perfBase=performance.now();tick();
+   if(data.jalali_date&&window.initJalaliCalendarToday)window.initJalaliCalendarToday(data.jalali_date);
+  }catch(_){clock.textContent="ساعت تهران: دریافت زمان ناموفق";}
+ }
+ window.setInterval(tick,200);sync();window.setInterval(sync,30000);
+})();
+
+(function initBatchPlanner(){
+ const calculate=document.getElementById("batch-plan-calculate"),create=document.getElementById("batch-create-orders");
+ if(!calculate||!create)return;
+ const lead=document.getElementById("batch-lead-seconds"),interval=document.getElementById("batch-interval-ms");
+ const quantityMode=document.getElementById("batch-quantity-mode"),resultBox=document.getElementById("batch-plan-result");
+ const errorBox=document.getElementById("batch-plan-error"),summary=document.getElementById("batch-plan-summary"),rows=document.getElementById("batch-plan-rows");
+ let plan=null;
+ function parseClock(value){
+  const match=String(value||"").match(/^(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/);
+  if(!match)return null;
+  const hour=Number(match[1]),minute=Number(match[2]),second=Number(match[3]||0),ms=Number((match[4]||"").padEnd(3,"0"));
+  if(hour>23||minute>59||second>59)return null;
+  return ((hour*60+minute)*60+second)*1000+ms;
+ }
+ function clear(){plan=null;create.disabled=true;resultBox.hidden=true;errorBox.hidden=true;rows.replaceChildren();}
+ calculate.addEventListener("click",async()=>{
+  clear();
+  const target=parseClock(document.getElementById("schedule-time").value);
+  const leadMs=Math.round(Number(lead.value)*1000),intervalMs=Number(interval.value);
+  if(target===null||!Number.isFinite(leadMs)||!Number.isFinite(intervalMs)){errorBox.textContent="ساعت یا تنظیمات نوبت معتبر نیست.";errorBox.hidden=false;return;}
+  try{
+   const response=await fetch("/api/order-plan?target_ms="+target+"&lead_ms="+leadMs+"&interval_ms="+intervalMs,{cache:"no-store"});
+   const data=await response.json();if(!response.ok)throw new Error(data.error||"محاسبه برنامه ناموفق بود.");
+   plan=data;document.getElementById("batch-order-count").textContent=fmt(data.count);
+   summary.textContent="تعداد نوبت‌ها: "+fmt(data.count)+" · اولین: "+data.first+" · آخرین: "+data.last;
+   const visible=data.slots.slice(0,Math.min(100,data.slots.length));
+   visible.forEach(slot=>{const row=document.createElement("div");row.textContent="#"+slot.number+" — "+slot.time;rows.append(row);});
+   if(data.count>visible.length){const more=document.createElement("div");more.textContent="… "+fmt(data.count-visible.length)+" نوبت دیگر";rows.append(more);}
+   resultBox.hidden=false;create.disabled=false;
+  }catch(error){errorBox.textContent=error.message;errorBox.hidden=false;}
+ });
+ create.addEventListener("click",async()=>{
+  const form=document.getElementById("order-form"),instrument=orderPicker.getSelected();
+  if(!plan||!instrument){errorBox.textContent="ابتدا نماد را انتخاب و برنامه را محاسبه کن.";errorBox.hidden=false;return;}
+  if(!form.reportValidity())return;
+  if(!window.confirm("تعداد "+fmt(plan.count)+" سفارش محلی زمان‌بندی‌شده ساخته شود؟ این عملیات هیچ سفارشی به کارگزاری ارسال نمی‌کند."))return;
+  const payload={
+   symbol:instrument.symbol,isin:instrument.isin,side,
+   price:document.getElementById("price").value,quantity:document.getElementById("quantity").value,
+   execute_at_date:document.getElementById("schedule-date").value,execute_time:document.getElementById("schedule-time").value,
+   batch_lead_seconds:lead.value,batch_interval_ms:interval.value,batch_quantity_mode:quantityMode.value
+  };
+  create.disabled=true;create.textContent="در حال ذخیره…";
+  try{
+   const response=await fetch("/api/orders/batch",{method:"POST",cache:"no-store",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},body:new URLSearchParams(payload)});
+   const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||"ذخیره دسته سفارش‌ها ناموفق بود.");
+   resultBox.hidden=false;summary.textContent=fmt(data.count)+" سفارش ذخیره شد؛ از "+data.first+" تا "+data.last;
+   showView("scheduled");
+  }catch(error){errorBox.textContent=error.message;errorBox.hidden=false;}
+  finally{create.disabled=false;create.textContent="ساخت سفارش‌های زمان‌بندی‌شده";}
+ });
+ for(const field of [document.getElementById("schedule-time"),lead,interval,quantityMode,document.getElementById("price"),document.getElementById("quantity")])field.addEventListener("input",clear);
+})();
+
 fetch("/api/symbols/status",{cache:"no-store"}).then(r=>r.json()).then(d=>{
  const text=d.count?("فهرست پشتیبان "+fmt(d.count)+" نماد · "+(d.updated_at?"به‌روزرسانی "+d.updated_at:"در حال دریافت")):"جست‌وجو از فهرست بورس تهران";
  if(!document.getElementById("symbol").value.trim())document.getElementById("symbol-status").textContent=text;
