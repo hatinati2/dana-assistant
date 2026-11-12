@@ -117,7 +117,6 @@ login_parse_replacement = """            try:
             except Exception:
                 result = None
 
-            global session_auth, broker_login_ok
             session_auth = capture_session_auth(result)
             login_ok = login_succeeded(result)
             broker_login_ok = login_ok
@@ -295,6 +294,7 @@ if "login_status = \"ناموفق\"" in s and "ورود دومرحله‌ای:" 
     s = s.replace(marker, details_prefix + marker, 1)
 
 post_marker = """    def do_POST(self):
+        global session_auth, broker_login_ok
         if not self.allowed_host():
             self.send_error(403)
             return
