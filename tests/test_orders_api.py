@@ -88,6 +88,26 @@ class FetchOpenOrdersTests(unittest.TestCase):
         result = fetch_open_orders(ErrorOpener(), [], {"sessionid": "test-session"})
         self.assertEqual(result["message"], "gateway unavailable")
 
+    def test_extracts_html_error_page_title_without_returning_html(self):
+        class ErrorOpener:
+            def open(self, request, timeout=20):
+                body = (
+                    b"<!doctype html><html><head>"
+                    b"<title> HTTP Error 500.30 - ASP.NET Core app failed to start </title>"
+                    b"</head><body>diagnostic page</body></html>"
+                )
+                raise __import__("urllib.error").error.HTTPError(
+                    request.full_url, 500, "Internal Server Error", {},
+                    __import__("io").BytesIO(body),
+                )
+
+        result = fetch_open_orders(ErrorOpener(), [], {"sessionid": "test-session"})
+        self.assertEqual(
+            result["message"],
+            "HTTP Error 500.30 - ASP.NET Core app failed to start",
+        )
+        self.assertNotIn("<html", result["message"].lower())
+
     def test_redacts_tokens_from_plain_text_error(self):
         class ErrorOpener:
             def open(self, request, timeout=20):
@@ -131,6 +151,10 @@ class FetchOpenOrdersTests(unittest.TestCase):
         opener = OpenOrdersOpener()
         result = fetch_open_orders(opener, [], {"sessionid": "test-session"})
         self.assertTrue(result["ok"])
+        self.assertEqual(
+            opener.request.full_url,
+            "https://api-dana.ephoenix.ir/api/v2/orders/GetOpenOrders?type=1",
+        )
         self.assertEqual(opener.request.get_header("X-sessionid"), "test-session")
 
 
