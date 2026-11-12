@@ -115,10 +115,10 @@ def fetch_open_orders(opener, cookies, session_auth):
         if message:
             message = str(message)
             message = re.sub(
-                r"(?i)(authorization|token|sessionid|cookie|password)\\s*[:=]\\s*[^,;\\s]+",
-                r"\\1=[redacted]", message,
+                r"(?i)(authorization|token|sessionid|cookie|password)\s*[:=]\s*[^,;\s]+",
+                r"\1=[redacted]", message,
             )
-            message = re.sub(r"(?i)bearer\\s+\\S+", "Bearer [redacted]", message)
+            message = re.sub(r"(?i)bearer\s+\\S+", "Bearer [redacted]", message)
             message = message[:240]
         else:
             message = "دانا درخواست را نپذیرفت (HTTP " + str(status) + ")."
