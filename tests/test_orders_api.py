@@ -100,6 +100,25 @@ class FetchOpenOrdersTests(unittest.TestCase):
         self.assertIn("token=[redacted]", result["message"])
         self.assertNotIn("secret-value", result["message"])
 
+    def test_redacts_bearer_json_and_session_values(self):
+        class ErrorOpener:
+            def open(self, request, timeout=20):
+                raise __import__("urllib.error").error.HTTPError(
+                    request.full_url, 500, "Internal Server Error", {},
+                    __import__("io").BytesIO(
+                        b'{"errorMessage":"Authorization: Bearer bearer-secret, accessToken=access-secret, sessionId=session-secret"}'
+                    ),
+                )
+
+        result = fetch_open_orders(
+            ErrorOpener(), [],
+            {"sessionid": "session-secret", "accesstoken": "access-secret"},
+        )
+        self.assertNotIn("bearer-secret", result["message"])
+        self.assertNotIn("access-secret", result["message"])
+        self.assertNotIn("session-secret", result["message"])
+        self.assertIn("[redacted]", result["message"])
+
     def test_sends_x_sessionid_header(self):
         class OpenOrdersOpener:
             def __init__(self):
