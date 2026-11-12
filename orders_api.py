@@ -61,6 +61,9 @@ def fetch_open_orders(opener, cookies, session_auth):
     authorization = session_auth.get("authorization")
 
     if session_id:
+        # Dana order endpoints use the x-sessionid header; keep the legacy
+        # casing too for gateway versions that still expect sessionId.
+        headers["x-sessionid"] = session_id
         headers["sessionId"] = session_id
     if third_party:
         headers["thirdPartyToken"] = third_party
