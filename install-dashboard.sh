@@ -36,6 +36,9 @@ s = p.read_text(encoding="utf-8")
 if "from datetime import datetime" not in s:
     s = s.replace("import html\n", "import html\nfrom datetime import datetime\n", 1)
 
+if "import threading\n" not in s:
+    s = s.replace("import html\n", "import html\nimport threading\n", 1)
+
 
 if 'from pathlib import Path' not in s:
     if "import html\n" in s:
@@ -70,21 +73,29 @@ if orders_import_marker not in s:
         raise SystemExit("Cannot locate symbols import for orders API")
     s = s.replace(
         symbols_import,
-        symbols_import + "\nfrom orders_api import capture_session_auth, fetch_open_orders, login_succeeded\nsession_auth = {}\nbroker_login_ok = False",
+        symbols_import + "\nfrom orders_api import capture_session_auth, fetch_open_orders, login_succeeded, submit_buy_order\nsession_auth = {}\nbroker_login_ok = False",
         1,
     )
 else:
     s = s.replace(
-        "from orders_api import capture_session_auth, fetch_open_orders\n",
-        "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded\n",
+        "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded, submit_buy_order\n",
+        "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded, submit_buy_order\n",
         1,
     )
     if "broker_login_ok = " + "False" not in s:
         s = s.replace("session_auth = {}", "session_auth = {}\nbroker_login_ok = False", 1)
 
+if "broker_order_lock = threading.Lock()" not in s:
+    if "broker_login_ok = False" in s:
+        s = s.replace("broker_login_ok = False", "broker_login_ok = False\nbroker_order_lock = threading.Lock()", 1)
+    elif "session_auth = {}" in s:
+        s = s.replace("session_auth = {}", "session_auth = {}\nbroker_order_lock = threading.Lock()", 1)
+    else:
+        raise SystemExit("Cannot locate broker session globals for order lock")
+
 orders_store_import = "from orders_store import ScheduledOrderStore, TEHRAN, start_order_scheduler, calendar_data, build_order_plan, format_jalali_datetime"
 if orders_store_import not in s:
-    marker = "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded"
+    marker = "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded, submit_buy_order"
     if marker not in s:
         raise SystemExit("Cannot locate orders API import for local scheduler")
     s = s.replace(marker, marker + "\n" + orders_store_import, 1)
@@ -312,9 +323,29 @@ if 'api_path.startswith("/api/orders/")' not in s:
                 parsed_fields = parse_qs(body, keep_blank_values=True)
                 form = {key: values[0] for key, values in parsed_fields.items()}
                 if api_path == "/api/orders/schedule":
+                    if form.get("execution_mode") == "auto_order":
+                        if not origin or form.get("confirmed") != "yes":
+                            self.send_json({"ok": False, "error": "تأیید سفارش واقعی زمان‌بندی‌شده معتبر نیست."}, 400)
+                            return
+                        if form.get("side") not in ("buy", "sell") or form.get("validity", "day") != "day":
+                            self.send_json({"ok": False, "error": "نوع یا اعتبار سفارش واقعی معتبر نیست."}, 400)
+                            return
+                        if not broker_login_ok or not session_auth.get("sessionid"):
+                            self.send_json({"ok": False, "error": "ابتدا وارد دانا شو تا سفارش واقعی زمان‌بندی شود."}, 401)
+                            return
                     result = order_store.create_order(form)
                     self.send_json({"ok": True, "order": result}, 201)
                 elif api_path == "/api/orders/batch":
+                    if form.get("execution_mode", "manual") == "auto_order":
+                        if not origin or form.get("confirmed") != "yes":
+                            self.send_json({"ok": False, "error": "تأیید ارسال واقعی دسته‌ای معتبر نیست؛ صفحه را تازه‌سازی و دوباره تأیید کن."}, 400)
+                            return
+                        if form.get("side") not in ("buy", "sell") or form.get("validity", "day") != "day":
+                            self.send_json({"ok": False, "error": "نوع یا اعتبار سفارش دسته‌ای معتبر نیست."}, 400)
+                            return
+                        if not broker_login_ok or not session_auth.get("sessionid"):
+                            self.send_json({"ok": False, "error": "برای زمان‌بندی ارسال واقعی دسته‌ای، ابتدا وارد حساب دانا شو."}, 401)
+                            return
                     result = order_store.create_batch(form)
                     self.send_json({"ok": True, **result}, 201)
                 elif api_path == "/api/orders/cancel":
@@ -343,8 +374,26 @@ if 'api_path.startswith("/api/orders/")' not in s:
 startup_start = s.find('print("Login portal listening')
 if startup_start < 0:
     raise SystemExit("Could not locate panel server startup")
-s = s[:startup_start] + '''start_symbol_refresh()
-start_order_scheduler(order_store)
+s = s[:startup_start] + '''def submit_scheduled_order(order):
+    """Submit each due order once; unknown outcomes are not retried."""
+    if order.get("side") not in ("buy", "sell"):
+        return {"not_sent": True, "message": "نوع سفارش معتبر نیست؛ سفارش ارسال نشد."}
+    with broker_order_lock:
+        if not broker_login_ok or not session_auth.get("sessionid"):
+            return {"not_sent": True, "status": 0, "message": "در زمان اجرا نشست معتبر دانا موجود نبود؛ سفارش ارسال نشد."}
+        try:
+            return submit_buy_order(
+                opener, cookies, session_auth,
+                order.get("isin"), order.get("price"), order.get("quantity"),
+                side=order.get("side"),
+            )
+        except ValueError as exc:
+            return {"not_sent": True, "message": str(exc)[:240]}
+        except Exception:
+            return {"uncertain": True, "message": "نتیجه ارسال مشخص نیست؛ برای جلوگیری از سفارش تکراری، دوباره ارسال نمی‌شود."}
+
+start_symbol_refresh()
+start_order_scheduler(order_store, submit_auto_order=submit_scheduled_order)
 print("Login portal listening on 0.0.0.0:8109")
 HTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
 '''

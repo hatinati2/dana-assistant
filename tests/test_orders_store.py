@@ -108,5 +108,48 @@ class ScheduledOrderStoreTests(unittest.TestCase):
             self.store.create_order(fields, now=self.now)
 
 
+    def test_batch_auto_orders_are_persisted_for_one_shot_submission(self):
+        fields = self.fields()
+        fields["execution_mode"] = "auto_order"
+        fields.update({
+            "batch_lead_seconds": "1",
+            "batch_interval_ms": "250",
+            "batch_quantity_mode": "total",
+        })
+        result = self.store.create_batch(fields, now=self.now)
+        self.assertEqual(result["count"], 4)
+        active = self.store.list_orders("active")
+        self.assertEqual(len(active), 4)
+        self.assertEqual({row["status"] for row in active}, {"auto_scheduled"})
+        self.assertEqual({row["execution_mode"] for row in active}, {"auto_order"})
+        self.assertEqual([row["quantity"] for row in active], [25, 25, 25, 25])
+        first_due = datetime.fromisoformat(active[0]["execute_at"]) + timedelta(milliseconds=1)
+        claimed = self.store.claim_due_auto_orders(first_due, limit=1)
+        self.assertEqual([row["id"] for row in claimed], [active[0]["id"]])
+        self.store.complete_auto_order(active[0]["id"], {"ok": True, "status": 200})
+        self.assertEqual(self.store.list_orders("history")[0]["status"], "submitted")
+
+    def test_auto_batch_supports_buy_and_sell(self):
+        for side in ("buy", "sell"):
+            fields = self.fields()
+            fields.update({
+                "side": side, "execution_mode": "auto_order",
+                "batch_lead_seconds": "1", "batch_interval_ms": "500",
+                "batch_quantity_mode": "each",
+            })
+            result = self.store.create_batch(fields, now=self.now)
+            self.assertEqual(result["count"], 2)
+        active = self.store.list_orders("active")
+        self.assertEqual(sum(row["side"] == "buy" for row in active), 2)
+        self.assertEqual(sum(row["side"] == "sell" for row in active), 2)
+
+    def test_invalid_isin_is_rejected_for_auto_batch(self):
+        fields = self.fields()
+        fields["execution_mode"] = "auto_order"
+        fields["isin"] = ""
+        with self.assertRaises(ValueError):
+            self.store.create_batch(fields, now=self.now)
+
+
 if __name__ == "__main__":
     unittest.main()

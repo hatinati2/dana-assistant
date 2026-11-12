@@ -81,6 +81,7 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 <div class="field"><label>تعداد</label><input id="quantity" type="number" min="1" step="1" required></div>
 <div class="field"><label>اعتبار سفارش</label><select id="validity"><option value="day">روز</option><option value="gtc">معتبر تا تاریخ</option><option value="ioc">انجام و حذف باقیمانده</option></select></div>
 <div class="field"><label>تاریخ اعتبار</label><input id="validity-date" type="date" disabled></div>
+<div class="field wide"><label>روش اجرا</label><select id="execution-mode"><option value="manual">محلی؛ در زمان مقرر آماده بررسی</option><option value="auto_order">ارسال واقعی خرید/فروش به دانا در زمان مقرر</option></select><div class="sub">ارسال واقعی فقط پس از تأیید تو و با نشست معتبر دانا انجام می‌شود. نتیجه نامشخص خودکار تکرار نمی‌شود.</div></div>
 <div class="field wide"><label>تاریخ اجرای سفارش (شمسی، تهران)</label><div class="schedule-datebar"><input id="schedule-date" name="execute_at_date" type="text" inputmode="numeric" dir="ltr" placeholder="۱۴۰۵/۰۸/۲۱" autocomplete="off" required><button id="calendar-toggle" class="secondary" type="button">تقویم شمسی</button></div><div id="jalali-calendar" class="calendar" hidden><div class="cal-head"><button id="cal-prev" class="secondary" type="button">ماه قبل</button><strong id="cal-title">تقویم شمسی</strong><button id="cal-next" class="secondary" type="button">ماه بعد</button></div><div class="cal-grid" id="cal-weekdays"><span>ش</span><span>ی</span><span>د</span><span>س</span><span>چ</span><span>پ</span><span>ج</span></div><div class="cal-grid" id="cal-days"></div></div></div>
 <div class="field"><label>ساعت اجرا (تهران)</label><input id="schedule-time" name="execute_time" type="time" step="0.001" value="09:00:00.000" required></div>
 <div class="field"><label>دقت زمان</label><div class="info" style="padding:8px">میلی‌ثانیه · تاریخ و زمان در سرور ذخیره می‌شوند</div></div>
@@ -270,10 +271,18 @@ document.getElementById("order-form").addEventListener("submit",async e=>{
  const instrument=orderPicker.getSelected();
  const toast=document.getElementById("draft-toast");
  if(!instrument){document.getElementById("symbol-status").textContent="نماد را از پیشنهادها انتخاب کن تا ISIN دقیق ثبت شود.";document.getElementById("symbol").focus();return;}
+ const executionMode=document.getElementById("execution-mode").value;
+ if(executionMode==="auto_order"){
+  if(document.getElementById("validity").value!=="day"){toast.textContent="ارسال واقعی فعلاً فقط برای اعتبار «روز» پشتیبانی می‌شود.";toast.classList.add("show");return;}
+  const sideLabel=side==="buy"?"خرید":"فروش";
+  if(!window.confirm("تأیید نهایی زمان‌بندی ارسال واقعی؟\n\n"+sideLabel+" "+instrument.symbol+"\nقیمت: "+fmt(document.getElementById("price").value)+" ریال\nتعداد: "+fmt(document.getElementById("quantity").value)+" سهم\nزمان تهران: "+document.getElementById("schedule-date").value+" "+document.getElementById("schedule-time").value+"\n\nدر زمان اجرا یک درخواست واقعی به کارگزاری فرستاده می‌شود. ادامه می‌دهی؟"))return;
+ }
  const payload={
   symbol:instrument.symbol,isin:instrument.isin,side,
   price:document.getElementById("price").value,
   quantity:document.getElementById("quantity").value,
+  validity:document.getElementById("validity").value,
+  execution_mode:executionMode,confirmed:executionMode==="auto_order"?"yes":"",
   execute_at_date:document.getElementById("schedule-date").value,
   execute_time:document.getElementById("schedule-time").value
  };
@@ -282,7 +291,7 @@ document.getElementById("order-form").addEventListener("submit",async e=>{
   const response=await fetch("/api/orders/schedule",{method:"POST",cache:"no-store",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},body:new URLSearchParams(payload)});
   const result=await response.json();
   if(!response.ok||!result.ok)throw new Error(result.error||"ذخیره سفارش انجام نشد.");
-  toast.textContent="سفارش "+instrument.symbol+" برای "+result.order.execute_at_jalali+" ذخیره شد.";
+  toast.textContent=executionMode==="auto_order"?"ارسال واقعی "+(side==="buy"?"خرید":"فروش")+" "+instrument.symbol+" برای "+result.order.execute_at_jalali+" زمان‌بندی شد.":"سفارش "+instrument.symbol+" برای "+result.order.execute_at_jalali+" ذخیره شد.";
   showView("scheduled");
  }catch(error){toast.textContent="خطا: "+(error.message||"ذخیره سفارش ناموفق بود.");}
 });
@@ -295,7 +304,13 @@ function localPost(path,values={}){
  });
 }
 function localStatusLabel(status){
- return ({scheduled:"زمان‌بندی‌شده",ready:"آماده بررسی",manual_done:"تأیید دستی شد",cancelled:"لغوشده"})[status]||status||"—";
+ return ({
+  scheduled:"زمان‌بندی‌شده",ready:"آماده بررسی",
+  auto_scheduled:"ارسال واقعی زمان‌بندی‌شده",submitting:"در حال ارسال به دانا",
+  submitted:"ثبت موفق در دانا",rejected:"ردشده توسط دانا",
+  uncertain:"نتیجه نامشخص؛ سفارش‌های باز را بررسی کن",not_sent:"ارسال نشد",
+  manual_done:"تأیید دستی شد",cancelled:"لغوشده"
+ })[status]||status||"—";
 }
 const localOrderCache=new Map();
 function appendTextCell(row,value){
@@ -324,7 +339,7 @@ function renderLocalOrders(rows,view){
   const statusCell=appendTextCell(tr,localStatusLabel(order.status));
   statusCell.className=order.status==="ready"?"status-ready":order.status==="manual_done"?"status-done":order.status==="cancelled"?"status-cancelled":"status-scheduled";
   const actions=tr.insertCell();actions.className="local-order-actions";
-  if(!history&&order.status==="scheduled")localActionButton(actions,"لغو","cancel",order.id);
+  if(!history&&(order.status==="scheduled"||order.status==="auto_scheduled"))localActionButton(actions,"لغو","cancel",order.id);
   if(!history&&order.status==="ready")localActionButton(actions,"ثبت دستی انجام شد","confirm",order.id);
   localActionButton(actions,"کپی سفارش","copy",order.id);
   body.append(tr);
@@ -478,10 +493,22 @@ document.getElementById("clear-local-history").addEventListener("click",async()=
   const form=document.getElementById("order-form"),instrument=orderPicker.getSelected();
   if(!plan||!instrument){errorBox.textContent="ابتدا نماد را انتخاب و برنامه را محاسبه کن.";errorBox.hidden=false;return;}
   if(!form.reportValidity())return;
-  if(!window.confirm("تعداد "+fmt(plan.count)+" سفارش محلی زمان‌بندی‌شده ساخته شود؟ این عملیات هیچ سفارشی به کارگزاری ارسال نمی‌کند."))return;
+  const executionMode=document.getElementById("execution-mode").value;
+  if(executionMode==="auto_order"&&document.getElementById("validity").value!=="day"){
+   errorBox.textContent="برای ارسال واقعی دسته‌ای، اعتبار سفارش باید «روز» باشد.";errorBox.hidden=false;return;
+  }
+  const price=Number(document.getElementById("price").value),quantity=Number(document.getElementById("quantity").value);
+  const totalQuantity=quantityMode.value==="total"?quantity:quantity*plan.count;
+  const sideLabel=side==="buy"?"خرید":"فروش";
+  const confirmation=executionMode==="auto_order"
+   ? "تأیید نهایی ارسال واقعی دسته‌ای به دانا؟\n\n"+fmt(plan.count)+" سفارش واقعی "+sideLabel+" نماد "+instrument.symbol+"\nقیمت هر سفارش: "+fmt(price)+" ریال\nمجموع تعداد: "+fmt(totalQuantity)+" سهم\nشروع نوبت‌ها: "+plan.first+"\nزمان هدف: "+plan.target+"\nفاصله: "+fmt(Number(interval.value))+" میلی‌ثانیه\n\nهر نوبت یک درخواست مستقل به کارگزاری می‌فرستد. نوبت با بیش از ۵ ثانیه تأخیر ارسال نمی‌شود و نتیجه نامشخص تکرار نخواهد شد. ادامه می‌دهی؟"
+   : "تعداد "+fmt(plan.count)+" سفارش محلی زمان‌بندی‌شده ساخته شود؟ این عملیات هیچ سفارشی به کارگزاری ارسال نمی‌کند.";
+  if(!window.confirm(confirmation))return;
   const payload={
    symbol:instrument.symbol,isin:instrument.isin,side,
    price:document.getElementById("price").value,quantity:document.getElementById("quantity").value,
+   validity:document.getElementById("validity").value,
+   execution_mode:executionMode,confirmed:executionMode==="auto_order"?"yes":"",
    execute_at_date:document.getElementById("schedule-date").value,execute_time:document.getElementById("schedule-time").value,
    batch_lead_seconds:lead.value,batch_interval_ms:interval.value,batch_quantity_mode:quantityMode.value
   };
@@ -489,7 +516,7 @@ document.getElementById("clear-local-history").addEventListener("click",async()=
   try{
    const response=await fetch("/api/orders/batch",{method:"POST",cache:"no-store",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},body:new URLSearchParams(payload)});
    const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||"ذخیره دسته سفارش‌ها ناموفق بود.");
-   resultBox.hidden=false;summary.textContent=fmt(data.count)+" سفارش ذخیره شد؛ از "+data.first+" تا "+data.last;
+   resultBox.hidden=false;summary.textContent=fmt(data.count)+(executionMode==="auto_order"?" سفارش واقعی برای ارسال به دانا زمان‌بندی شد؛ از ":" سفارش محلی ذخیره شد؛ از ")+data.first+" تا "+data.last;
    showView("scheduled");
   }catch(error){errorBox.textContent=error.message;errorBox.hidden=false;}
   finally{create.disabled=false;create.textContent="ساخت سفارش‌های زمان‌بندی‌شده";}

@@ -6,6 +6,7 @@ returned to the browser or written to disk.
 import json
 import urllib.error
 import urllib.request
+import uuid
 
 
 def capture_session_auth(payload):
@@ -121,3 +122,123 @@ def fetch_open_orders(opener, cookies, session_auth):
         "session_ready": session_ready,
         "data": data,
     }
+
+
+def submit_buy_order(opener, cookies, session_auth, isin, price, volume, side="buy"):
+    """Send one order to Dana once; uncertain outcomes are never retried."""
+    session_id = session_auth.get("sessionid")
+    side = str(side or "").strip().lower()
+    side_code = {"buy": 1, "sell": 2}.get(side)
+    if side_code is None:
+        raise ValueError("نوع سفارش معتبر نیست")
+    isin = str(isin or "").strip().upper()
+    if len(isin) != 12 or not isin.isascii() or not isin.isalnum():
+        raise ValueError("شناسه ISIN معتبر نیست")
+    try:
+        price = int(price)
+        volume = int(volume)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("قیمت و تعداد باید عدد صحیح باشند") from exc
+    if price <= 0 or volume <= 0:
+        raise ValueError("قیمت و تعداد باید مثبت باشند")
+    session_ready = bool(session_auth or list(cookies))
+    if not session_id:
+        return {"ok": False, "not_sent": True, "status": 0,
+                "session_ready": session_ready,
+                "message": "نشست دانا موجود نیست؛ سفارش ارسال نشد."}
+
+    url = "https://api-dana.ephoenix.ir/api/v2/orders/NewOrder"
+    origin = "https://dana.ephoenix.ir"
+    request_id = str(uuid.uuid4())
+    preflight = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "*/*", "Origin": origin, "Referer": origin + "/",
+            "User-Agent": "Mozilla/5.0",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,x-request-id,x-sessionid",
+        },
+        method="OPTIONS",
+    )
+    try:
+        with opener.open(preflight, timeout=20) as response:
+            preflight_status = response.status
+    except urllib.error.HTTPError as exc:
+        return {"ok": False, "not_sent": True, "status": exc.code,
+                "session_ready": session_ready,
+                "message": "مرحله اولیه اتصال ناموفق بود؛ سفارش ارسال نشد."}
+    except Exception:
+        return {"ok": False, "not_sent": True, "status": 0,
+                "session_ready": session_ready,
+                "message": "ارتباط اولیه برقرار نشد؛ سفارش ارسال نشد."}
+    if not 200 <= preflight_status < 300:
+        return {"ok": False, "not_sent": True, "status": preflight_status,
+                "session_ready": session_ready,
+                "message": "مرحله اولیه نامعتبر بود؛ سفارش ارسال نشد."}
+
+    payload = {
+        "validity": 1, "validityDate": None, "price": price,
+        "volume": volume, "side": side_code, "isin": isin, "accountType": 1,
+    }
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    request = urllib.request.Request(
+        url, data=body,
+        headers={
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json;charset=UTF-8",
+            "Origin": origin, "Referer": origin + "/",
+            "User-Agent": "Mozilla/5.0",
+            "x-request-id": request_id, "x-sessionid": session_id,
+        },
+        method="POST",
+    )
+    try:
+        with opener.open(request, timeout=25) as response:
+            status = response.status
+            raw = response.read(200_000)
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        raw = exc.read(200_000)
+    except Exception:
+        return {"ok": False, "uncertain": True, "status": 0,
+                "session_ready": session_ready,
+                "message": "پاسخ ثبت سفارش دریافت نشد؛ ممکن است درخواست به دانا رسیده باشد. پیش از هر اقدام سفارش‌های باز را بررسی کن."}
+
+    try:
+        data = json.loads(raw.decode("utf-8-sig")) if raw else None
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        data = None
+    if status < 200 or status >= 300:
+        message = None
+        if isinstance(data, dict):
+            message = data.get("Message") or data.get("message") or data.get("errorMessage")
+        return {"ok": False, "uncertain": status >= 500, "status": status,
+                "session_ready": session_ready,
+                "message": str(message or f"دانا درخواست را نپذیرفت (HTTP {status}).")[:240]}
+    if data is None:
+        return {"ok": False, "uncertain": True, "status": status,
+                "session_ready": session_ready,
+                "message": "پاسخ ثبت سفارش JSON معتبر نبود؛ سفارش‌های باز را بررسی کن."}
+
+    success_flag = None
+    if isinstance(data, dict):
+        for key in ("isSuccess", "success", "ok"):
+            value = data.get(key)
+            if value is True or (isinstance(value, str) and value.strip().lower() == "true"):
+                success_flag = True
+                break
+            if value is False or (isinstance(value, str) and value.strip().lower() == "false"):
+                success_flag = False
+                break
+    if success_flag is True:
+        return {"ok": True, "status": status, "session_ready": session_ready,
+                "message": f"دانا ثبت سفارش {'خرید' if side == 'buy' else 'فروش'} را تأیید کرد."}
+    if success_flag is False:
+        message = None
+        if isinstance(data, dict):
+            message = data.get("Message") or data.get("message") or data.get("errorMessage")
+        return {"ok": False, "status": status, "session_ready": session_ready,
+                "message": str(message or "دانا سفارش را نپذیرفت.")[:240]}
+    return {"ok": False, "uncertain": True, "status": status,
+            "session_ready": session_ready,
+            "message": "پاسخ دانا تأیید صریح ثبت سفارش نداشت؛ وضعیت سفارش‌های باز را بررسی کن."}

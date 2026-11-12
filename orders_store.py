@@ -264,6 +264,7 @@ def _common_order(fields: dict[str, Any]) -> dict[str, Any]:
     symbol = str(fields.get("symbol", "")).strip()
     side = str(fields.get("side", "buy")).strip().lower()
     isin = str(fields.get("isin", "")).strip().upper()
+    execution_mode = str(fields.get("execution_mode", "manual")).strip().lower()
     try:
         price = int(str(fields.get("price", "")).strip())
         quantity = int(str(fields.get("quantity", "")).strip())
@@ -277,13 +278,17 @@ def _common_order(fields: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("قیمت و تعداد باید مثبت باشند")
     if isin and not ISIN_RE.fullmatch(isin):
         raise ValueError("شناسه ISIN معتبر نیست")
+    if execution_mode not in ("manual", "auto_order"):
+        raise ValueError("روش اجرای سفارش معتبر نیست")
+    if execution_mode == "auto_order" and not ISIN_RE.fullmatch(isin):
+        raise ValueError("برای ارسال خودکار، ISIN معتبر الزامی است")
     return {
         "symbol": symbol,
         "isin": isin,
         "side": side,
         "price": price,
         "quantity": quantity,
-        "execution_mode": "manual",
+        "execution_mode": execution_mode,
     }
 
 
@@ -304,6 +309,18 @@ class ScheduledOrderStore:
         if not isinstance(data, list):
             raise ValueError("ساختار فایل سفارش‌های زمان‌بندی‌شده معتبر نیست")
         self._orders = [row for row in data if isinstance(row, dict)]
+        recovered = False
+        for row in self._orders:
+            if row.get("status") == "submitting":
+                row["status"] = "uncertain"
+                row["broker_message"] = (
+                    "پردازش هنگام ارسال متوقف شد؛ برای جلوگیری از سفارش تکراری، "
+                    "ارسال مجدد انجام نشد. سفارش‌های باز دانا را بررسی کن."
+                )
+                row["updated_at"] = datetime.now(timezone.utc).isoformat()
+                recovered = True
+        if recovered:
+            self._save_locked()
 
     def _save_locked(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -331,7 +348,7 @@ class ScheduledOrderStore:
             "id": uuid.uuid4().hex,
             **common,
             "execute_at": execute_at.astimezone(timezone.utc).isoformat(),
-            "status": "scheduled",
+            "status": "auto_scheduled" if common.get("execution_mode") == "auto_order" else "scheduled",
             "created_at": now.astimezone(timezone.utc).isoformat(),
             "updated_at": now.astimezone(timezone.utc).isoformat(),
         }
@@ -399,12 +416,17 @@ class ScheduledOrderStore:
         return output
 
     def list_orders(self, view: str = "active") -> list[dict[str, Any]]:
+        history_statuses = (
+            "cancelled", "manual_done", "submitted", "rejected",
+            "uncertain", "not_sent",
+        )
+        active_statuses = ("scheduled", "ready", "auto_scheduled", "submitting")
         with self._lock:
             if view == "history":
-                rows = [row for row in self._orders if row.get("status") in ("cancelled", "manual_done")]
+                rows = [row for row in self._orders if row.get("status") in history_statuses]
                 rows.sort(key=lambda row: row.get("updated_at", ""), reverse=True)
             else:
-                rows = [row for row in self._orders if row.get("status") in ("scheduled", "ready")]
+                rows = [row for row in self._orders if row.get("status") in active_statuses]
                 rows.sort(key=lambda row: row.get("execute_at", ""))
             return [self._public_record(dict(row)) for row in rows]
 
@@ -432,12 +454,93 @@ class ScheduledOrderStore:
                     raise
         return changed
 
+
+    def claim_due_auto_orders(self, now=None, max_late_seconds=5.0, limit=1):
+        now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        claimed = []
+        changed = False
+        with self._lock:
+            previous = [dict(row) for row in self._orders]
+            for row in self._orders:
+                if row.get("status") != "auto_scheduled":
+                    continue
+                try:
+                    due = datetime.fromisoformat(row["execute_at"])
+                    if due.tzinfo is None:
+                        due = due.replace(tzinfo=timezone.utc)
+                    due = due.astimezone(timezone.utc)
+                except Exception:
+                    row["status"] = "not_sent"
+                    row["broker_message"] = "زمان اجرا معتبر نیست؛ سفارش ارسال نشد."
+                    row["updated_at"] = now.isoformat()
+                    changed = True
+                    continue
+                if due > now:
+                    continue
+                if (now - due).total_seconds() > max_late_seconds:
+                    row["status"] = "not_sent"
+                    row["broker_message"] = "زمان اجرا گذشته است؛ سفارش دیرهنگام ارسال نشد."
+                    row["updated_at"] = now.isoformat()
+                    changed = True
+                    continue
+                if row.get("side") not in ("buy", "sell") or not ISIN_RE.fullmatch(str(row.get("isin", ""))):
+                    row["status"] = "not_sent"
+                    row["broker_message"] = "اطلاعات سفارش معتبر نیست؛ ارسال نشد."
+                    row["updated_at"] = now.isoformat()
+                    changed = True
+                    continue
+                row["status"] = "submitting"
+                row["updated_at"] = now.isoformat()
+                claimed.append(dict(row))
+                changed = True
+                if len(claimed) >= max(1, limit):
+                    break
+            if changed:
+                try:
+                    self._save_locked()
+                except Exception:
+                    self._orders = previous
+                    raise
+        return claimed
+
+    def complete_auto_order(self, order_id, result):
+        result = result if isinstance(result, dict) else {}
+        if result.get("ok") is True:
+            status = "submitted"
+        elif result.get("not_sent") is True:
+            status = "not_sent"
+        elif result.get("uncertain") is True:
+            status = "uncertain"
+        else:
+            status = "rejected"
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock:
+            for index, row in enumerate(self._orders):
+                if row.get("id") != order_id:
+                    continue
+                if row.get("status") != "submitting":
+                    raise ValueError("وضعیت سفارش برای ثبت نتیجه معتبر نیست")
+                previous = dict(row)
+                row["status"] = status
+                row["updated_at"] = now
+                row["broker_message"] = str(result.get("message") or "پاسخ دانا ثبت شد.")[:240]
+                broker_status = result.get("status")
+                if isinstance(broker_status, int) and not isinstance(broker_status, bool):
+                    row["broker_http_status"] = broker_status
+                try:
+                    self._save_locked()
+                except Exception:
+                    self._orders[index] = previous
+                    raise
+                return
+        raise ValueError("سفارش برای ثبت نتیجه پیدا نشد")
+
     def cancel(self, order_id: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self._lock:
             for index, row in enumerate(self._orders):
                 if row.get("id") == order_id:
-                    if row.get("status") not in ("scheduled", "ready"):
+                    if row.get("status") not in ("scheduled", "ready", "auto_scheduled"):
                         raise ValueError("فقط سفارش زمان‌بندی‌شده یا آماده بررسی قابل لغو است")
                     previous = dict(row)
                     row["status"] = "cancelled"
@@ -456,7 +559,7 @@ class ScheduledOrderStore:
         with self._lock:
             previous = [dict(row) for row in self._orders]
             for row in self._orders:
-                if row.get("status") == "scheduled":
+                if row.get("status") in ("scheduled", "ready", "auto_scheduled"):
                     row["status"] = "cancelled"
                     row["updated_at"] = now
                     count += 1
@@ -489,7 +592,11 @@ class ScheduledOrderStore:
     def clear_history(self) -> int:
         with self._lock:
             old = self._orders
-            self._orders = [row for row in old if row.get("status") not in ("cancelled", "manual_done")]
+            history_statuses = (
+                "cancelled", "manual_done", "submitted", "rejected",
+                "uncertain", "not_sent",
+            )
+            self._orders = [row for row in old if row.get("status") not in history_statuses]
             removed = len(old) - len(self._orders)
             if removed:
                 try:
@@ -500,15 +607,35 @@ class ScheduledOrderStore:
             return removed
 
 
-def start_order_scheduler(store: ScheduledOrderStore, interval: float = 0.25) -> threading.Thread:
+def start_order_scheduler(
+    store: ScheduledOrderStore,
+    interval: float = 0.01,
+    submit_auto_order=None,
+) -> threading.Thread:
     def run() -> None:
         while True:
             try:
                 store.mark_due()
             except Exception:
-                # A later pass retries persistence; no broker operation is involved.
                 pass
-            time.sleep(max(0.1, interval))
+            if submit_auto_order is not None:
+                try:
+                    due_orders = store.claim_due_auto_orders(limit=1)
+                except Exception:
+                    due_orders = []
+                for order in due_orders:
+                    try:
+                        result = submit_auto_order(order)
+                    except Exception:
+                        result = {
+                            "uncertain": True,
+                            "message": "نتیجه ارسال نامشخص است؛ سفارش دوباره ارسال نمی‌شود.",
+                        }
+                    try:
+                        store.complete_auto_order(order["id"], result)
+                    except Exception:
+                        pass
+            time.sleep(max(0.01, interval))
 
     thread = threading.Thread(target=run, name="dana-order-scheduler", daemon=True)
     thread.start()
