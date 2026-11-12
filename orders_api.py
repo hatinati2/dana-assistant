@@ -42,6 +42,38 @@ def login_succeeded(payload):
     return value is True or (isinstance(value, str) and value.strip().lower() == "true")
 
 
+
+def _sanitize_upstream_error(message, session_auth, cookies):
+    """Keep useful upstream diagnostics while removing authentication secrets."""
+    if isinstance(message, (dict, list)):
+        message = json.dumps(message, ensure_ascii=False)
+    text = str(message)
+
+    text = re.sub(r"(?i)\bBearer\s+[^\s,;}\]]+", "Bearer [redacted]", text)
+    text = re.sub(
+        r"(?im)\b(cookie|set-cookie)\s*[:=]\s*[^\r\n]+",
+        r"\1=[redacted]",
+        text,
+    )
+    text = re.sub(
+        r"""(?i)(["']?(?:authorization|access[_-]?token|refresh[_-]?token|token|jwt|session[_-]?id|third[_-]?party[_-]?token|password)["']?\s*[:=]\s*["']?)[^"'\s,;}\]]+""",
+        r"\1[redacted]",
+        text,
+    )
+
+    for value in (session_auth or {}).values():
+        value = str(value)
+        if len(value) >= 4:
+            text = text.replace(value, "[redacted]")
+    try:
+        for cookie in list(cookies):
+            value = str(getattr(cookie, "value", "") or "")
+            if len(value) >= 4:
+                text = text.replace(value, "[redacted]")
+    except Exception:
+        pass
+    return text[:240]
+
 def fetch_open_orders(opener, cookies, session_auth):
     """Fetch active orders (type=1) using the login CookieJar and auth fields."""
     url = "https://api-dana.ephoenix.ir/api/v2/orders/GetOpenOrders?type=1"
@@ -113,13 +145,7 @@ def fetch_open_orders(opener, cookies, session_auth):
             # Some gateways return plain-text diagnostics instead of JSON.
             message = raw.decode("utf-8", errors="replace").strip()
         if message:
-            message = str(message)
-            message = re.sub(
-                r"(?i)(authorization|token|sessionid|cookie|password)\s*[:=]\s*[^,;\s]+",
-                r"\1=[redacted]", message,
-            )
-            message = re.sub(r"(?i)bearer\s+\\S+", "Bearer [redacted]", message)
-            message = message[:240]
+            message = _sanitize_upstream_error(message, session_auth, cookies)
         else:
             message = "دانا درخواست را نپذیرفت (HTTP " + str(status) + ")."
         return {
