@@ -30,6 +30,7 @@ mv "$APP_DIR/tests/test_orders_store.py.tmp" "$APP_DIR/tests/test_orders_store.p
 
 python3 - <<'PY'
 from pathlib import Path
+import re
 
 p = Path.home() / "dana-monitor" / "login_portal.py"
 s = p.read_text(encoding="utf-8")
@@ -400,6 +401,19 @@ start_order_scheduler(order_store, submit_auto_order=submit_scheduled_order)
 print("Login portal listening on 0.0.0.0:8109")
 HTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
 '''
+# Remove every function-local global declaration touching broker session state.
+# The login handler writes these values through globals(), so no declaration is needed.
+s = re.sub(
+    r"(?m)^[ \\t]*global[ \\t]+[^\\n]*(?:\\bsession_auth\\b|\\bbroker_login_ok\\b)[^\\n]*\\r?\\n",
+    "",
+    s,
+)
+if re.search(
+    r"(?m)^[ \\t]*global[ \\t]+[^\\n]*(?:\\bsession_auth\\b|\\bbroker_login_ok\\b)",
+    s,
+):
+    raise SystemExit("Unsafe global declaration remains in login_portal.py")
+compile(s, str(p), "exec")
 p.write_text(s, encoding="utf-8")
 PY
 "$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/login_portal.py" "$APP_DIR/symbols.py" "$APP_DIR/orders_api.py" "$APP_DIR/orders_store.py"
