@@ -101,8 +101,27 @@ def fetch_open_orders(opener, cookies, session_auth):
     if status < 200 or status >= 300:
         message = None
         if isinstance(data, dict):
-            message = data.get("Message") or data.get("message")
-        if not message:
+            message = (
+                data.get("Message") or data.get("message")
+                or data.get("errorMessage") or data.get("detail")
+                or data.get("title") or data.get("error")
+            )
+        if isinstance(message, (dict, list)):
+            message = json.dumps(message, ensure_ascii=False)
+        if not message and raw:
+            # Some gateways return plain-text diagnostics instead of JSON.
+            message = raw.decode("utf-8", errors="replace").strip()
+        if message:
+            message = str(message)
+            for secret_name in ("authorization", "token", "sessionid", "cookie", "password"):
+                import re
+                message = re.sub(
+                    r"(?i)(" + secret_name + r r"\\s*[:=]\\s*)[^,;\\s\\"']+",
+                    r"\\1[redacted]", message,
+                )
+            message = re.sub(r"(?i)bearer\\s+[^\\s,;\\"']+", "Bearer [redacted]", message)
+            message = message[:240]
+        else:
             message = "دانا درخواست را نپذیرفت (HTTP " + str(status) + ")."
         return {
             "ok": False,
