@@ -4,6 +4,7 @@ Authentication material is kept in the server process only and is never
 returned to the browser or written to disk.
 """
 import json
+import re
 import urllib.error
 import urllib.request
 import uuid
@@ -113,13 +114,11 @@ def fetch_open_orders(opener, cookies, session_auth):
             message = raw.decode("utf-8", errors="replace").strip()
         if message:
             message = str(message)
-            for secret_name in ("authorization", "token", "sessionid", "cookie", "password"):
-                import re
-                message = re.sub(
-                    r"(?i)(" + secret_name + r r"\\s*[:=]\\s*)[^,;\\s\\"']+",
-                    r"\\1[redacted]", message,
-                )
-            message = re.sub(r"(?i)bearer\\s+[^\\s,;\\"']+", "Bearer [redacted]", message)
+            message = re.sub(
+                r"(?i)(authorization|token|sessionid|cookie|password)\\s*[:=]\\s*[^,;\\s]+",
+                r"\\1=[redacted]", message,
+            )
+            message = re.sub(r"(?i)bearer\\s+\\S+", "Bearer [redacted]", message)
             message = message[:240]
         else:
             message = "دانا درخواست را نپذیرفت (HTTP " + str(status) + ")."
