@@ -3,6 +3,7 @@
 Authentication material is kept in the server process only and is never
 returned to the browser or written to disk.
 """
+import html
 import json
 import re
 import urllib.error
@@ -142,8 +143,21 @@ def fetch_open_orders(opener, cookies, session_auth):
         if isinstance(message, (dict, list)):
             message = json.dumps(message, ensure_ascii=False)
         if not message and raw:
-            # Some gateways return plain-text diagnostics instead of JSON.
-            message = raw.decode("utf-8", errors="replace").strip()
+            # Gateways sometimes return an HTML error page instead of JSON.
+            raw_text = raw.decode("utf-8", errors="replace").strip()
+            if re.search(r"(?is)<(?:!doctype\s+html|html\b|head\b|body\b)", raw_text):
+                title_match = re.search(r"(?is)<title\b[^>]*>(.*?)</title\s*>", raw_text)
+                if title_match:
+                    title = re.sub(r"<[^>]+>", " ", title_match.group(1))
+                    message = " ".join(html.unescape(title).split())
+                else:
+                    message = (
+                        "سرویس سفارش‌های دانا به‌جای JSON صفحه خطا برگرداند "
+                        f"(HTTP {status})."
+                    )
+            else:
+                # Plain-text diagnostics are useful; never return raw HTML to the UI.
+                message = raw_text
         if message:
             message = _sanitize_upstream_error(message, session_auth, cookies)
         else:
