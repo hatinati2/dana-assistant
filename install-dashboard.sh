@@ -106,6 +106,10 @@ if "order_store = ScheduledOrderStore(" not in s:
     s = s.replace(orders_store_import, orders_store_import + "\norder_store = ScheduledOrderStore(Path(__file__).resolve().parent / \"data\" / \"scheduled_orders.json\")", 1)
 
 json_parse_prefix = "            try:\n                result = json.loads(raw) if raw else None"
+# Remove function-local declarations left by earlier installer revisions.
+for indent in ("        ", "            ", "                "):
+    s = s.replace(indent + "global session_auth, broker_login_ok\n", "")
+
 json_parse_start = s.find(json_parse_prefix)
 keys_line = "            keys = sorted(result.keys()) if isinstance(result, dict) else []"
 json_parse_end = s.find(keys_line, json_parse_start)
@@ -117,9 +121,9 @@ login_parse_replacement = """            try:
             except Exception:
                 result = None
 
-            session_auth = capture_session_auth(result)
+            globals()["session_auth"] = capture_session_auth(result)
             login_ok = login_succeeded(result)
-            broker_login_ok = login_ok
+            globals()["broker_login_ok"] = login_ok
             if login_ok:
                 self.send_response(303)
                 self.send_header("Location", "/")
@@ -294,7 +298,6 @@ if "login_status = \"ناموفق\"" in s and "ورود دومرحله‌ای:" 
     s = s.replace(marker, details_prefix + marker, 1)
 
 post_marker = """    def do_POST(self):
-        global session_auth, broker_login_ok
         if not self.allowed_host():
             self.send_error(403)
             return
