@@ -77,6 +77,29 @@ class _FakeOpener:
 
 
 class FetchOpenOrdersTests(unittest.TestCase):
+    def test_reports_upstream_error_message(self):
+        class ErrorOpener:
+            def open(self, request, timeout=20):
+                raise __import__("urllib.error").error.HTTPError(
+                    request.full_url, 500, "Internal Server Error", {},
+                    __import__("io").BytesIO(b'{"errorMessage":"gateway unavailable"}'),
+                )
+
+        result = fetch_open_orders(ErrorOpener(), [], {"sessionid": "test-session"})
+        self.assertEqual(result["message"], "gateway unavailable")
+
+    def test_redacts_tokens_from_plain_text_error(self):
+        class ErrorOpener:
+            def open(self, request, timeout=20):
+                raise __import__("urllib.error").error.HTTPError(
+                    request.full_url, 500, "Internal Server Error", {},
+                    __import__("io").BytesIO(b"token=secret-value upstream failed"),
+                )
+
+        result = fetch_open_orders(ErrorOpener(), [], {"sessionid": "test-session"})
+        self.assertIn("token=[redacted]", result["message"])
+        self.assertNotIn("secret-value", result["message"])
+
     def test_sends_x_sessionid_header(self):
         class OpenOrdersOpener:
             def __init__(self):
