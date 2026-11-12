@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from orders_api import capture_session_auth, submit_buy_order
+from orders_api import capture_session_auth, fetch_open_orders, submit_buy_order
 
 
 class SessionAuthTests(unittest.TestCase):
@@ -74,6 +74,22 @@ class _FakeOpener:
         if request.get_method() == "OPTIONS":
             return _FakeResponse(204)
         return _FakeResponse(200, self.post_body)
+
+
+class FetchOpenOrdersTests(unittest.TestCase):
+    def test_sends_x_sessionid_header(self):
+        class OpenOrdersOpener:
+            def __init__(self):
+                self.request = None
+
+            def open(self, request, timeout=20):
+                self.request = request
+                return _FakeResponse(200, b'{"orders":[]}')
+
+        opener = OpenOrdersOpener()
+        result = fetch_open_orders(opener, [], {"sessionid": "test-session"})
+        self.assertTrue(result["ok"])
+        self.assertEqual(opener.request.get_header("X-sessionid"), "test-session")
 
 
 class SubmitOrderTests(unittest.TestCase):
