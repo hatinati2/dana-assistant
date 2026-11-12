@@ -609,7 +609,7 @@ class ScheduledOrderStore:
 
 def start_order_scheduler(
     store: ScheduledOrderStore,
-    interval: float = 0.01,
+    interval: float = 1.0,
     submit_auto_order=None,
 ) -> threading.Thread:
     def run() -> None:
