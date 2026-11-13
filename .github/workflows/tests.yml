@@ -16,5 +16,7 @@ jobs:
           python-version: "3.11"
       - name: Compile
         run: python -m py_compile symbols.py orders_api.py orders_store.py
+      - name: Check installer shell syntax
+        run: bash -n install-dashboard.sh
       - name: Unit tests
         run: python -m unittest discover -s tests -v
