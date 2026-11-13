@@ -9,10 +9,52 @@ test -x "$APP_DIR/.venv/bin/python" || { echo "Python virtualenv not found: $APP
 test -f "$APP_DIR/login_portal.py" || { echo "login_portal.py not found"; exit 1; }
 mkdir -p "$APP_DIR/logs"
 
+# Keep a server-local batch interval override. Existing installations inherit
+# their current dashboard value once; clean installations default to 1000 ms.
+INTERVAL_CONFIG="/etc/dana-assistant-batch-interval-ms"
+if [[ ! -f "$INTERVAL_CONFIG" ]]; then
+  INITIAL_INTERVAL="1000"
+  if [[ -f "$APP_DIR/dashboard.html" ]]; then
+    DETECTED_INTERVAL="$(python3 - "$APP_DIR/dashboard.html" <<'PY'
+import re, sys
+try:
+    text = open(sys.argv[1], encoding="utf-8").read()
+    match = re.search(r'<input id="batch-interval-ms"[^>]*\bvalue="(\d+)"', text)
+    print(match.group(1) if match else "")
+except Exception:
+    print("")
+PY
+)"
+    if [[ "$DETECTED_INTERVAL" =~ ^[0-9]+$ ]] && (( DETECTED_INTERVAL >= 1 && DETECTED_INTERVAL <= 1000 )); then
+      INITIAL_INTERVAL="$DETECTED_INTERVAL"
+    fi
+  fi
+  printf '%s\n' "$INITIAL_INTERVAL" > "$INTERVAL_CONFIG"
+  chmod 0600 "$INTERVAL_CONFIG"
+fi
+
+BATCH_INTERVAL="$(tr -d '[:space:]' < "$INTERVAL_CONFIG")"
+if [[ ! "$BATCH_INTERVAL" =~ ^[0-9]+$ ]] || (( BATCH_INTERVAL < 1 || BATCH_INTERVAL > 1000 )); then
+  echo "فاصله نوبت‌های محلی باید عدد صحیحی بین ۱ تا ۱۰۰۰ میلی‌ثانیه باشد: $INTERVAL_CONFIG" >&2
+  exit 1
+fi
+
 # Remove only the panel-specific self-signed certificate created by the previous installer.
 rm -f /etc/ssl/certs/dana-panel.crt /etc/ssl/private/dana-panel.key
 
 curl -fsSL "$RAW/dashboard.html" -o "$APP_DIR/dashboard.html.tmp"
+python3 - "$APP_DIR/dashboard.html.tmp" "$BATCH_INTERVAL" <<'PY'
+import re, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+value = sys.argv[2]
+text = path.read_text(encoding="utf-8")
+pattern = r'(<input id="batch-interval-ms"[^>]*\bvalue=")\d+(")'
+updated, count = re.subn(pattern, lambda m: m.group(1) + value + m.group(2), text, count=1)
+if count != 1:
+    raise SystemExit("ناتوان در اعمال تنظیم فاصله نوبت‌ها روی داشبورد")
+path.write_text(updated, encoding="utf-8")
+PY
 mv "$APP_DIR/dashboard.html.tmp" "$APP_DIR/dashboard.html"
 curl -fsSL "$RAW/symbols.py" -o "$APP_DIR/symbols.py.tmp"
 mv "$APP_DIR/symbols.py.tmp" "$APP_DIR/symbols.py"
@@ -422,35 +464,44 @@ PY
 "$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/login_portal.py" "$APP_DIR/symbols.py" "$APP_DIR/orders_api.py" "$APP_DIR/orders_store.py"
 "$APP_DIR/.venv/bin/python" -m unittest discover -s "$APP_DIR/tests" -v
 
-# Stop only the Python process currently listening on the panel port.
-python3 - <<'PY'
-import os, re, signal, subprocess, time
-try:
-    output = subprocess.check_output(["ss", "-ltnp"], text=True, stderr=subprocess.DEVNULL)
-except Exception:
-    output = ""
-pids = set(re.findall(r"pid=(\d+)", "\n".join(
-    line for line in output.splitlines() if ":8109 " in line
-)))
-for value in pids:
-    pid = int(value)
-    try:
-        cmd = open(f"/proc/{pid}/cmdline", "rb").read().replace(b"\0", b" ").decode(errors="ignore")
-        if "login_portal.py" in cmd:
-            os.kill(pid, signal.SIGTERM)
-    except (OSError, ProcessLookupError):
-        pass
-for _ in range(20):
-    time.sleep(0.1)
-    check = subprocess.run(["ss", "-ltn"], capture_output=True, text=True).stdout
-    if ":8109 " not in check:
-        break
-PY
+# Stop and restart this panel through systemd; never detach it from its service.
+if systemctl cat dana-assistant.service >/dev/null 2>&1; then
+  if ! systemctl cat dana-assistant.service | grep -Fq "$APP_DIR/.venv/bin/python $APP_DIR/login_portal.py"; then
+    echo "سرویس dana-assistant.service متعلق به مسیر مورد انتظار نیست؛ عملیات متوقف شد." >&2
+    exit 1
+  fi
+else
+  cat > /etc/systemd/system/dana-assistant.service <<EOF
+[Unit]
+Description=Dana Assistant Web Panel
+After=network-online.target
+Wants=network-online.target
 
-cd "$APP_DIR"
-nohup "$APP_DIR/.venv/bin/python" login_portal.py >> logs/login_portal.log 2>&1 </dev/null &
-sleep 1
-ss -ltnp | grep ':8109'
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$APP_DIR
+Environment=PYTHONUNBUFFERED=1
+ExecStart=$APP_DIR/.venv/bin/python $APP_DIR/login_portal.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
+EOF
+fi
+
+systemctl daemon-reload
+systemctl enable dana-assistant.service >/dev/null
+systemctl restart dana-assistant.service
+sleep 2
+systemctl is-active --quiet dana-assistant.service || {
+  systemctl --no-pager --full status dana-assistant.service || true
+  journalctl -u dana-assistant.service -n 40 --no-pager || true
+  exit 1
+}
+ss -lntp | grep ':8109'
 
 # Open the port in UFW only when UFW is already active.
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
