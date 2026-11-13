@@ -425,7 +425,7 @@ if http_import in s:
 elif threaded_import not in s:
     raise SystemExit("Cannot locate HTTP server import")
 
-startup_start = s.find("\\ndef submit_scheduled_order(order):")
+startup_start = s.find("\ndef submit_scheduled_order(order):")
 if startup_start < 0:
     startup_start = s.find('print("Login portal listening')
 if startup_start < 0:
