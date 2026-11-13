@@ -51,6 +51,16 @@ class BatchPlannerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_order_plan(20_000, 10_000, 1)
 
+    def test_batch_interval_accepts_minimum_and_maximum(self):
+        self.assertEqual(build_order_plan(10_000, 1, 1)["count"], 1)
+        self.assertEqual(build_order_plan(10_000, 1_000, 1_000)["count"], 1)
+
+    def test_batch_interval_rejects_zero_and_values_above_1000(self):
+        for interval in (0, 1001):
+            with self.subTest(interval=interval):
+                with self.assertRaises(ValueError):
+                    build_order_plan(10_000, 1_000, interval)
+
 
 class ScheduledOrderStoreTests(unittest.TestCase):
     def setUp(self):
