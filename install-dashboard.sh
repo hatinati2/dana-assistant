@@ -416,9 +416,20 @@ if 'api_path.startswith("/api/orders/")' not in s:
         raise SystemExit("Cannot locate Handler.do_POST host guard")
     s = s.replace(post_marker, post_marker + post_addition, 1)
 
-startup_start = s.find('print("Login portal listening')
+# Rebuild the complete scheduler/server tail from its first generated
+# function. Older installer revisions appended another copy on every run.
+http_import = "from http.server import BaseHTTPRequestHandler, HTTPServer"
+threaded_import = "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer"
+if http_import in s:
+    s = s.replace(http_import, threaded_import, 1)
+elif threaded_import not in s:
+    raise SystemExit("Cannot locate HTTP server import")
+
+startup_start = s.find("\\ndef submit_scheduled_order(order):")
 if startup_start < 0:
-    raise SystemExit("Could not locate panel server startup")
+    startup_start = s.find('print("Login portal listening')
+if startup_start < 0:
+    raise SystemExit("Could not locate panel scheduler/server section")
 s = s[:startup_start] + '''def submit_scheduled_order(order):
     """Submit each due order once; unknown outcomes are not retried."""
     if order.get("side") not in ("buy", "sell"):
@@ -440,7 +451,7 @@ s = s[:startup_start] + '''def submit_scheduled_order(order):
 start_symbol_refresh()
 start_order_scheduler(order_store, submit_auto_order=submit_scheduled_order)
 print("Login portal listening on 0.0.0.0:8109")
-HTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
+ThreadingHTTPServer(("0.0.0.0", 8109), Handler).serve_forever()
 '''
 # Remove every global declaration that mentions broker session state.
 # The login handler writes these values through globals(), so no declaration is needed.
