@@ -33,7 +33,7 @@ JALALI_MONTHS = (
 )
 MAX_BATCH_ORDERS = 5000
 MAX_LEAD_MS = 3_600_000
-MAX_INTERVAL_MS = 60_000
+MAX_INTERVAL_MS = 1_000
 SYMBOL_RE = re.compile(r"^[\w.\-]{1,24}$", re.UNICODE)
 ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 DIGITS = str.maketrans(
@@ -221,7 +221,7 @@ def build_order_plan(target_ms: int, lead_ms: int, interval_ms: int) -> dict[str
     if lead_ms < 1 or lead_ms > MAX_LEAD_MS:
         raise ValueError("زمان شروع باید بین یک میلی‌ثانیه تا یک ساعت باشد")
     if interval_ms < 1 or interval_ms > MAX_INTERVAL_MS:
-        raise ValueError("فاصله نوبت‌ها باید بین یک میلی‌ثانیه تا یک دقیقه باشد")
+        raise ValueError("فاصله نوبت‌ها باید بین ۱ تا ۱۰۰۰ میلی‌ثانیه باشد")
     if target_ms < lead_ms:
         raise ValueError("شروع برنامه از نیمه‌شب عبور می‌کند؛ تاریخ هدف را اصلاح کن")
     count = (lead_ms + interval_ms - 1) // interval_ms
