@@ -87,7 +87,7 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 <div class="field"><label>دقت زمان</label><div class="info" style="padding:8px">میلی‌ثانیه · تاریخ و زمان در سرور ذخیره می‌شوند</div></div>
 <details class="batch-planner field wide" id="batch-planner"><summary>برنامه‌ریز نوبت‌های سرخطی</summary><div class="batch-plan-controls">
 <div><label for="batch-lead-seconds">شروع چند ثانیه قبل؟</label><input id="batch-lead-seconds" type="number" min="0.001" max="3600" step="0.001" value="10"></div>
-<div><label for="batch-interval-ms">فاصله بین نوبت‌ها (میلی‌ثانیه)</label><input id="batch-interval-ms" type="number" min="1" max="60000" step="1" value="200"></div>
+<div><label for="batch-interval-ms">فاصله بین نوبت‌ها (میلی‌ثانیه)</label><input id="batch-interval-ms" type="number" min="1" max="1000" step="1" value="1000"></div>
 <div><label for="batch-quantity-mode">روش تعیین تعداد سهم</label><select id="batch-quantity-mode"><option value="each">تعداد واردشده برای هر سفارش</option><option value="total">تقسیم تعداد کل بین نوبت‌ها</option></select></div>
 <div><label>تعداد نوبت‌ها</label><strong id="batch-order-count">—</strong></div></div>
 <div class="actions"><button id="batch-plan-calculate" class="secondary" type="button">محاسبه نوبت‌ها</button><button id="batch-create-orders" class="primary" type="button" disabled>ساخت سفارش‌های زمان‌بندی‌شده</button></div>
@@ -490,6 +490,7 @@ document.getElementById("clear-local-history").addEventListener("click",async()=
   const target=parseClock(document.getElementById("schedule-time").value);
   const leadMs=Math.round(Number(lead.value)*1000),intervalMs=Number(interval.value);
   if(target===null||!Number.isFinite(leadMs)||!Number.isFinite(intervalMs)){errorBox.textContent="ساعت یا تنظیمات نوبت معتبر نیست.";errorBox.hidden=false;return;}
+  if(!Number.isInteger(intervalMs)||intervalMs<1||intervalMs>1000){errorBox.textContent="فاصله نوبت‌ها باید بین ۱ تا ۱۰۰۰ میلی‌ثانیه باشد.";errorBox.hidden=false;return;}
   try{
    const response=await fetch("/api/order-plan?target_ms="+target+"&lead_ms="+leadMs+"&interval_ms="+intervalMs,{cache:"no-store"});
    const data=await response.json();if(!response.ok)throw new Error(data.error||"محاسبه برنامه ناموفق بود.");
