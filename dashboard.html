@@ -37,7 +37,7 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 .toast{display:none;margin:12px 0;padding:11px;border-radius:9px;background:#ecfdf3;color:var(--green)}.toast.show{display:block}.loginbox{max-width:760px}.loginbox p{line-height:2;color:var(--muted)}.footer{color:var(--muted);font-size:10px;text-align:center;margin:18px 0}
 .schedule-datebar{display:flex;gap:6px}.schedule-datebar input{flex:1}.schedule-datebar button{white-space:nowrap}
 .calendar{margin-top:6px;padding:9px;border:1px solid var(--line);border-radius:10px;background:#fff}.cal-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;text-align:center}.cal-grid span{padding:7px 0;color:var(--muted);font-size:11px}.cal-day{background:#f8fafc;color:var(--ink);padding:8px 2px;border-radius:7px;border:0}.cal-day:hover,.cal-day.selected{background:var(--blue);color:#fff}.cal-day.today{outline:2px solid #84adff}.cal-empty{min-height:34px}
-.batch-planner{border:1px solid var(--line);border-radius:9px;padding:10px;background:#f8fafc}.batch-planner summary{cursor:pointer;font-size:11px;font-weight:bold}.batch-plan-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:7px}.batch-plan-controls label{margin:4px 0}.batch-plan-controls input,.batch-plan-controls select{height:34px}.batch-plan-error{color:var(--red);font-size:11px;margin-top:8px}.batch-plan-result{margin-top:8px;padding:9px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:11px}.batch-plan-rows{max-height:130px;overflow:auto;margin-top:8px;direction:ltr}.local-order-actions{display:flex;gap:5px}.local-order-actions button{padding:6px 8px;font-size:10px;white-space:nowrap}.status-scheduled{color:var(--blue)}.status-ready{color:var(--amber);font-weight:bold}.status-done{color:var(--green)}.status-cancelled{color:var(--muted)}
+.batch-planner{border:1px solid var(--line);border-radius:9px;padding:10px;background:#f8fafc}.batch-planner summary{cursor:pointer;font-size:11px;font-weight:bold}.batch-plan-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:7px}.batch-plan-controls label{margin:4px 0}.batch-plan-controls input,.batch-plan-controls select{height:34px}.batch-plan-error{color:var(--red);font-size:11px;margin-top:8px}.batch-plan-result{margin-top:8px;padding:9px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:11px}.batch-plan-rows{max-height:130px;overflow:auto;margin-top:8px;direction:ltr}.local-order-actions{display:flex;gap:5px}.local-order-actions button{padding:6px 8px;font-size:10px;white-space:nowrap}.status-scheduled{color:var(--blue)}.status-ready{color:var(--amber);font-weight:bold}.status-done{color:var(--green)}.status-cancelled{color:var(--muted)}.status-rejected{color:#b42318;font-weight:bold}.status-uncertain{color:#b54708;font-weight:bold}.broker-reason{min-width:260px;max-width:520px;white-space:normal;line-height:1.8;word-break:break-word;color:#475467}
 .open-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.open-head-actions .secondary{white-space:nowrap}
 @media(max-width:1000px){.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}.split{grid-template-columns:1fr}}
 @media(max-width:700px){.shell{padding:9px}.layout{grid-template-columns:1fr}.sidebar{display:flex;overflow:auto;gap:3px;padding:6px}.navbtn{width:auto;white-space:nowrap;padding:10px}.side-note{display:none}.topbar{align-items:flex-start;flex-direction:column}}
@@ -97,7 +97,7 @@ input:focus,select:focus{border-color:#84adff;box-shadow:0 0 0 3px #eff6ff}.side
 <section class="card"><h3>خلاصه و کنترل سفارش</h3><div class="statusline"><span class="dot"></span> مسیر API: غیرفعال</div><div class="info">پس از تکمیل اتصال دانا، کنترل موجودی، محدودیت قیمت و اعتبار سفارش به این بخش اضافه می‌شود. تا آن زمان هیچ سفارشی به کارگزاری ارسال نخواهد شد.</div><div style="margin-top:14px;color:var(--muted);font-size:11px;line-height:2">قیمت به ریال وارد می‌شود.<br>تعداد به واحد سهم وارد می‌شود.<br>ارزش نمایش‌داده‌شده بدون کارمزد است.</div></section></div></section>
 <section class="view" id="view-scheduled"><div class="pagehead"><div><h2>سفارش‌های زمان‌بندی‌شده</h2><div class="sub">برنامه‌های محلی؛ سفارش‌های سررسیدشده برای بررسی دستی آماده می‌شوند</div><div id="scheduled-updated" class="sub">در انتظار دریافت اطلاعات</div></div><div class="open-head-actions"><button id="cancel-all-scheduled" class="secondary" type="button">لغو همه زمان‌بندی‌ها</button><button id="refresh-scheduled" class="secondary" type="button">به‌روزرسانی</button></div></div><section class="card"><div class="tablewrap"><table><thead><tr><th>نماد</th><th>سمت</th><th>قیمت</th><th>تعداد</th><th>زمان تهران</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="scheduled-orders-body"><tr><td colspan="7" class="empty">هنوز سفارشی زمان‌بندی نشده است.</td></tr></tbody></table></div></section></section>
 <section class="view" id="view-open"><div class="pagehead"><div><h2>سفارش‌های باز کارگزاری</h2><div class="sub">فهرست سفارش‌های واقعی ثبت‌شده در حساب دانا (فقط خواندنی)</div><div id="open-orders-updated" class="sub">هنوز به‌روزرسانی نشده</div></div><div class="open-head-actions"><span id="open-orders-status" class="pill off">در انتظار اتصال</span><button id="refresh-open-orders" class="secondary" type="button">به‌روزرسانی</button></div></div><section class="card"><div class="tablewrap"><table><thead><tr><th>نماد</th><th>سمت</th><th>قیمت</th><th>تعداد</th><th>انجام‌شده</th><th>باقی‌مانده</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="open-orders-body"><tr><td colspan="8" class="empty">برای دریافت سفارش‌ها ابتدا از بخش اتصال به دانا وارد شو.</td></tr></tbody></table></div></section><div class="sub" style="margin-top:9px">این بخش فقط اطلاعات سفارش‌ها را می‌خواند؛ ویرایش یا لغو سفارش از این صفحه انجام نمی‌شود.</div></section>
-<section class="view" id="view-history"><div class="pagehead"><div><h2>تاریخچه سفارش‌های زمان‌بندی‌شده</h2><div class="sub">سفارش‌های لغوشده یا تأییدشده به‌صورت دستی</div></div><div class="open-head-actions"><button id="clear-local-history" class="secondary" type="button">پاک کردن تاریخچه</button><button id="refresh-local-history" class="secondary" type="button">به‌روزرسانی</button></div></div><section class="card"><div class="tablewrap"><table><thead><tr><th>زمان ثبت/اجرا</th><th>نماد</th><th>سمت</th><th>قیمت</th><th>تعداد</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="local-history-body"><tr><td colspan="7" class="empty">تاریخچه‌ای ثبت نشده است.</td></tr></tbody></table></div></section></section>
+<section class="view" id="view-history"><div class="pagehead"><div><h2>تاریخچه سفارش‌های زمان‌بندی‌شده</h2><div class="sub">تاریخچه سفارش‌ها همراه با نتیجه و پیام پاسخ کارگزاری</div></div><div class="open-head-actions"><button id="clear-local-history" class="secondary" type="button">پاک کردن تاریخچه</button><button id="refresh-local-history" class="secondary" type="button">به‌روزرسانی</button></div></div><section class="card"><div class="tablewrap"><table><thead><tr><th>زمان ثبت/اجرا</th><th>نماد</th><th>سمت</th><th>قیمت</th><th>تعداد</th><th>وضعیت</th><th>جزئیات پاسخ کارگزاری</th><th>عملیات</th></tr></thead><tbody id="local-history-body"><tr><td colspan="7" class="empty">تاریخچه‌ای ثبت نشده است.</td></tr></tbody></table></div></section></section>
 <section class="view" id="view-settings"><div class="pagehead"><div><h2>تنظیمات اتصال</h2><div class="sub">ورود به حساب کارگزاری دانا و وضعیت ارتباط</div></div></div>
 <section class="card loginbox"><h3>اتصال به دانا</h3><p>ورود با نام کاربری، رمز عبور و کپچای دستی انجام می‌شود. پس از احراز هویت، ساختار نشست و APIهای فقط‌خواندنی تکمیل خواهد شد.</p><div id="broker-session-status" class="statusline"><span class="dot"></span> وضعیت نشست: در حال بررسی</div><a class="primary" href="/login">باز کردن صفحه ورود دانا</a></section>
 <section class="card" style="margin-top:13px"><h3>وضعیت اجزای پنل</h3><div class="tablewrap"><table><tbody>
@@ -324,7 +324,7 @@ function renderLocalOrders(rows,view){
  const body=document.getElementById(history?"local-history-body":"scheduled-orders-body");
  body.replaceChildren();localOrderCache.clear();
  if(!rows.length){
-  const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=7;td.className="empty";td.textContent=history?"تاریخچه‌ای ثبت نشده است.":"هنوز سفارش زمان‌بندی‌شده‌ای ثبت نشده است.";tr.append(td);body.append(tr);return;
+  const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=history?8:7;td.className="empty";td.textContent=history?"تاریخچه‌ای ثبت نشده است.":"هنوز سفارش زمان‌بندی‌شده‌ای ثبت نشده است.";tr.append(td);body.append(tr);return;
  }
  for(const order of rows){
   localOrderCache.set(order.id,order);
@@ -337,7 +337,19 @@ function renderLocalOrders(rows,view){
   appendTextCell(tr,fmt(order.quantity));
   if(!history)appendTextCell(tr,order.execute_at_jalali||"—");
   const statusCell=appendTextCell(tr,localStatusLabel(order.status));
-  statusCell.className=order.status==="ready"?"status-ready":order.status==="manual_done"?"status-done":order.status==="cancelled"?"status-cancelled":"status-scheduled";
+  statusCell.className=order.status==="ready"?"status-ready":order.status==="manual_done"||order.status==="submitted"?"status-done":order.status==="cancelled"?"status-cancelled":order.status==="rejected"||order.status==="not_sent"?"status-rejected":order.status==="uncertain"?"status-uncertain":"status-scheduled";
+  if(history){
+   const reasonCell=tr.insertCell();reasonCell.className="broker-reason";
+   const message=String(order.broker_message||"").trim();
+   const httpStatus=order.broker_http_status;
+   if(message){
+    reasonCell.textContent=(httpStatus?"HTTP "+httpStatus+" — ":"")+message;
+   }else if(order.status==="rejected"||order.status==="uncertain"||order.status==="not_sent"){
+    reasonCell.textContent="جزئیات پاسخ کارگزاری در این رکورد ذخیره نشده است.";
+   }else{
+    reasonCell.textContent="—";
+   }
+  }
   const actions=tr.insertCell();actions.className="local-order-actions";
   if(!history&&(order.status==="scheduled"||order.status==="auto_scheduled"))localActionButton(actions,"لغو","cancel",order.id);
   if(!history&&order.status==="ready")localActionButton(actions,"ثبت دستی انجام شد","confirm",order.id);
@@ -355,7 +367,7 @@ async function loadLocalOrders(view="active"){
   renderLocalOrders(result.orders||[],view);
   if(!history)document.getElementById("scheduled-updated").textContent="آخرین به‌روزرسانی: "+new Date().toLocaleTimeString("fa-IR");
  }catch(error){
-  body.replaceChildren();const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=7;td.className="empty";td.textContent=error.message||"خطا در دریافت سفارش‌ها";tr.append(td);body.append(tr);
+  body.replaceChildren();const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=history?8:7;td.className="empty";td.textContent=error.message||"خطا در دریافت سفارش‌ها";tr.append(td);body.append(tr);
  }
 }
 function copyLocalOrder(order){
