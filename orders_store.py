@@ -12,6 +12,7 @@ import tempfile
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -609,9 +610,27 @@ class ScheduledOrderStore:
 
 def start_order_scheduler(
     store: ScheduledOrderStore,
-    interval: float = 1.0,
+    interval: float = 0.01,
     submit_auto_order=None,
 ) -> threading.Thread:
+    # Claim due orders quickly, then submit them independently. The store marks
+    # each order "submitting" before dispatch, so overlapping polling cycles
+    # cannot submit the same order twice.
+    executor = ThreadPoolExecutor(max_workers=32, thread_name_prefix="dana-order-submit")
+
+    def finish(order, future) -> None:
+        try:
+            result = future.result()
+        except Exception:
+            result = {
+                "uncertain": True,
+                "message": "نتیجه ارسال نامشخص است؛ برای جلوگیری از سفارش تکراری، ارسال مجدد انجام نمی‌شود.",
+            }
+        try:
+            store.complete_auto_order(order["id"], result)
+        except Exception:
+            pass
+
     def run() -> None:
         while True:
             try:
@@ -620,22 +639,24 @@ def start_order_scheduler(
                 pass
             if submit_auto_order is not None:
                 try:
-                    due_orders = store.claim_due_auto_orders(limit=1)
+                    due_orders = store.claim_due_auto_orders(limit=MAX_BATCH_ORDERS)
                 except Exception:
                     due_orders = []
                 for order in due_orders:
                     try:
-                        result = submit_auto_order(order)
+                        future = executor.submit(submit_auto_order, order)
+                        future.add_done_callback(
+                            lambda completed, claimed=order: finish(claimed, completed)
+                        )
                     except Exception:
-                        result = {
-                            "uncertain": True,
-                            "message": "نتیجه ارسال نامشخص است؛ سفارش دوباره ارسال نمی‌شود.",
-                        }
-                    try:
-                        store.complete_auto_order(order["id"], result)
-                    except Exception:
-                        pass
-            time.sleep(max(0.01, interval))
+                        try:
+                            store.complete_auto_order(order["id"], {
+                                "uncertain": True,
+                                "message": "ارسال سفارش به پردازشگر ممکن نشد؛ وضعیت سفارش باید بررسی شود.",
+                            })
+                        except Exception:
+                            pass
+            time.sleep(max(0.001, interval))
 
     thread = threading.Thread(target=run, name="dana-order-scheduler", daemon=True)
     thread.start()
