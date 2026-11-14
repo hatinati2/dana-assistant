@@ -139,6 +139,21 @@ class ScheduledOrderStoreTests(unittest.TestCase):
         self.store.complete_auto_order(active[0]["id"], {"ok": True, "status": 200})
         self.assertEqual(self.store.list_orders("history")[0]["status"], "submitted")
 
+    def test_claim_due_auto_orders_claims_all_due_orders_when_batch_limit_is_large(self):
+        fields = self.fields()
+        fields["execution_mode"] = "auto_order"
+        fields.update({
+            "batch_lead_seconds": "1",
+            "batch_interval_ms": "200",
+            "batch_quantity_mode": "each",
+        })
+        self.store.create_batch(fields, now=self.now)
+        active = self.store.list_orders("active")
+        due_now = datetime.fromisoformat(active[-1]["execute_at"]) + timedelta(milliseconds=1)
+        claimed = self.store.claim_due_auto_orders(due_now, limit=5000)
+        self.assertEqual(len(claimed), len(active))
+        self.assertEqual({row["status"] for row in self.store.list_orders("active")}, {"submitting"})
+
     def test_auto_batch_supports_buy_and_sell(self):
         for side in ("buy", "sell"):
             fields = self.fields()
