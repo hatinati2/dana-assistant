@@ -127,14 +127,6 @@ else:
     if "broker_login_ok = " + "False" not in s:
         s = s.replace("session_auth = {}", "session_auth = {}\nbroker_login_ok = False", 1)
 
-if "broker_order_lock = threading.Lock()" not in s:
-    if "broker_login_ok = False" in s:
-        s = s.replace("broker_login_ok = False", "broker_login_ok = False\nbroker_order_lock = threading.Lock()", 1)
-    elif "session_auth = {}" in s:
-        s = s.replace("session_auth = {}", "session_auth = {}\nbroker_order_lock = threading.Lock()", 1)
-    else:
-        raise SystemExit("Cannot locate broker session globals for order lock")
-
 orders_store_import = "from orders_store import ScheduledOrderStore, TEHRAN, start_order_scheduler, calendar_data, build_order_plan, format_jalali_datetime"
 if orders_store_import not in s:
     marker = "from orders_api import capture_session_auth, fetch_open_orders, login_succeeded, submit_buy_order"
@@ -434,19 +426,18 @@ s = s[:startup_start] + '''def submit_scheduled_order(order):
     """Submit each due order once; unknown outcomes are not retried."""
     if order.get("side") not in ("buy", "sell"):
         return {"not_sent": True, "message": "نوع سفارش معتبر نیست؛ سفارش ارسال نشد."}
-    with broker_order_lock:
-        if not broker_login_ok or not session_auth.get("sessionid"):
-            return {"not_sent": True, "status": 0, "message": "در زمان اجرا نشست معتبر دانا موجود نبود؛ سفارش ارسال نشد."}
-        try:
-            return submit_buy_order(
-                opener, cookies, session_auth,
-                order.get("isin"), order.get("price"), order.get("quantity"),
-                side=order.get("side"),
-            )
-        except ValueError as exc:
-            return {"not_sent": True, "message": str(exc)[:240]}
-        except Exception:
-            return {"uncertain": True, "message": "نتیجه ارسال مشخص نیست؛ برای جلوگیری از سفارش تکراری، دوباره ارسال نمی‌شود."}
+    if not broker_login_ok or not session_auth.get("sessionid"):
+        return {"not_sent": True, "status": 0, "message": "در زمان اجرا نشست معتبر دانا موجود نبود؛ سفارش ارسال نشد."}
+    try:
+        return submit_buy_order(
+            opener, cookies, session_auth,
+            order.get("isin"), order.get("price"), order.get("quantity"),
+            side=order.get("side"),
+        )
+    except ValueError as exc:
+        return {"not_sent": True, "message": str(exc)[:240]}
+    except Exception:
+        return {"uncertain": True, "message": "نتیجه ارسال مشخص نیست؛ برای جلوگیری از سفارش تکراری، دوباره ارسال نمی‌شود."}
 
 start_symbol_refresh()
 start_order_scheduler(order_store, submit_auto_order=submit_scheduled_order)
